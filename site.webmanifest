@@ -1,0 +1,30 @@
+{
+  "name": "Flappy Kitty",
+  "short_name": "Flappy Kitty",
+  "description": "Игра про кошку Мию, которая научилась летать.",
+  "lang": "ru",
+  "start_url": "play.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fff7f0",
+  "theme_color": "#f6c6d0",
+  "icons": [
+    {
+      "src": "assets/img/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/img/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/img/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

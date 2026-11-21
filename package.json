@@ -1,0 +1,10 @@
+{
+  "name": "flappykitty.online",
+  "private": true,
+  "type": "module",
+  "description": "Flappy Kitty — игра про кошку Мию. Статический сайт без сборки.",
+  "scripts": {
+    "start": "python3 -m http.server 8000 --bind 0.0.0.0",
+    "test": "node tools/bot-test.mjs"
+  }
+}
