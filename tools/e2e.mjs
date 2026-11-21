@@ -170,6 +170,12 @@ async function test(name, fn) {
   } catch (e) {
     results.push({ name, ok: false });
     console.error(`✗ ${name}\n    ${e.message}`);
+    // В GitHub Actions ошибка дублируется пометкой к проверке: её видно на странице pull request
+    // и через API (check-runs/…/annotations), даже когда полный журнал недоступен.
+    if (process.env.GITHUB_ACTIONS) {
+      const esc = (t) => String(t).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+      console.log(`::error title=${esc(name).replace(/[:,]/g, ' ')}::${esc(e.message.slice(0, 1500))}`);
+    }
   } finally {
     for (const p of pages) await p.close().catch(() => {});
   }
