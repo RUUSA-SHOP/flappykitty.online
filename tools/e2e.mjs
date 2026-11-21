@@ -293,7 +293,10 @@ await test('первый запуск: меню → вступление → п�
   equal(await page.evaluate(() => window.__fk.sim.status), 'ready', 'до первого касания Мия ждёт');
   await page.mouse.click(195, 500);
   await page.waitForFunction(() => window.__fk.sim.status === 'playing');
-  assert(!(await visible(page, '#hint')), 'подсказка должна исчезнуть после взмаха');
+  // подсказку убирает игровой цикл на следующем кадре после взмаха
+  await page
+    .waitForFunction(() => document.getElementById('hint').hidden, { timeout: 5000 })
+    .catch(() => assert(false, 'подсказка должна исчезнуть после взмаха'));
   equal((await stored(page)).plays, 1, 'запуск засчитан');
 });
 
