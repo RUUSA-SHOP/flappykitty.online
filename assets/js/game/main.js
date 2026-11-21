@@ -192,7 +192,7 @@ function renderLevels() {
 }
 
 function levelName(l) {
-  return l.id === 6 ? `Дорога к ${CONFIG.her.dative}` : l.name;
+  return l.theme === 'love' ? `Дорога к ${CONFIG.her.dative}` : l.name;
 }
 
 function renderSkins() {
