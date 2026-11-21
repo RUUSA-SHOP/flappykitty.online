@@ -2,7 +2,7 @@
    Запертые открываются, когда пройден соответствующий уровень.
    Для проверки текстов есть адрес love.html?peek=1 — он показывает всё сразу. */
 
-import { CONFIG } from './config.js';
+import { CONFIG, setSignature } from './config.js';
 import { save } from './storage.js';
 import { LEVELS } from './game/levels.js';
 
@@ -37,7 +37,9 @@ function openNote(note, { final = false } = {}) {
   card.append(el('span', 'note__no', final ? 'Письмо' : `Записка № ${note.level} · ${levelName(note.level)}`));
   card.append(el(final ? 'h2' : 'h3', '', note.title));
   paragraphs(card, note.text);
-  card.append(el('p', 'note__sign', final ? CONFIG.from : `— ${note.from || CONFIG.cat.name}`));
+  const sign = el('p', 'note__sign');
+  setSignature(sign, final ? CONFIG.from : `— ${note.from || CONFIG.cat.name}`);
+  card.append(sign);
   return card;
 }
 

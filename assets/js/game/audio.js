@@ -38,7 +38,17 @@ export class Sound {
       this.mus.gain.value = 0.5;
       this.mus.connect(this.master);
     }
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    // 'suspended' — обычная пауза, 'interrupted' — iOS после звонка или блокировки экрана
+    if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+  }
+
+  /** Вкладку свернули — отпускаем звуковое устройство, чтобы не тратить батарею. */
+  sleep() {
+    if (this.ctx && this.ctx.state === 'running') this.ctx.suspend().catch(() => {});
+  }
+  /** Вкладку вернули. Если браузер не разрешит — звук вернётся с первым касанием (unlock). */
+  wake() {
+    if (this.ctx && this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
   }
 
   setSound(on) {
@@ -216,6 +226,8 @@ export class Sound {
     const eighth = 60 / bpm / 2;
     const root = 60 + (ROOTS[this.theme] || 0);
     const prog = minor ? PROG.minor : PROG.major;
+    // Если страница подвисла, не доигрываем пропущенные ноты разом — продолжаем с текущего момента.
+    if (this.nextTime < this.ctx.currentTime) this.nextTime = this.ctx.currentTime + 0.05;
     while (this.nextTime < this.ctx.currentTime + 0.25) {
       const n = this.step++;
       const pos = n % 8;

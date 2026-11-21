@@ -9,16 +9,24 @@
   <script>
     /* Эту страницу сервер отдаёт для любого несуществующего адреса, в том числе
        вложенного, поэтому относительные пути считаем от корня сайта.
-       На github.io сайт лежит в подпапке с именем репозитория, на своём домене — в корне. */
+       На github.io сайт лежит в подпапке с именем репозитория, на своём домене — в корне.
+       Стили подключаются здесь же: браузер начинает качать файлы из разметки раньше,
+       чем узнаёт про <base>, и запросил бы их по неверному адресу. */
     (function () {
       var root = '/';
       if (/\.github\.io$/.test(location.hostname)) root = '/' + location.pathname.split('/')[1] + '/';
-      document.write('<base href="' + root + '">');
+      document.write(
+        '<base href="' + root + '">' +
+          '<link rel="icon" href="assets/img/icons/favicon-32.png" sizes="32x32" type="image/png">' +
+          '<link rel="stylesheet" href="assets/css/base.css">' +
+          '<link rel="stylesheet" href="assets/css/site.css">'
+      );
     })();
   </script>
-  <link rel="icon" href="assets/img/icons/favicon-32.png" sizes="32x32" type="image/png">
-  <link rel="stylesheet" href="assets/css/base.css">
-  <link rel="stylesheet" href="assets/css/site.css">
+  <noscript>
+    <link rel="stylesheet" href="/assets/css/base.css">
+    <link rel="stylesheet" href="/assets/css/site.css">
+  </noscript>
 </head>
 <body>
 <svg class="visually-hidden" aria-hidden="true" focusable="false">
@@ -38,7 +46,7 @@
 <header class="site-head">
   <div class="wrap site-head__in">
     <a class="brand" href="index.html">
-      <img src="assets/img/icons/icon-192.png" alt="" width="42" height="42">
+      <img src="assets/img/icons/icon-192.png" alt="" width="42" height="42" loading="lazy">
       <span>Flappy Kitty</span>
     </a>
     <div class="head-end">
@@ -52,7 +60,7 @@
     <p class="lost__code" aria-hidden="true">404</p>
     <h1>Мия сюда не залетала</h1>
     <p class="lead">Такой страницы нет. Возможно, её уронили со стола.</p>
-    <img class="sticker" src="assets/img/stickers/loaf.webp" alt="Мия лежит и смотрит в сторону" width="640" height="376">
+    <img class="sticker" src="assets/img/stickers/loaf.webp" alt="Мия лежит и смотрит в сторону" width="640" height="376" loading="lazy">
     <div class="hero__cta">
       <a class="btn" href="index.html">На главную</a>
       <a class="btn btn--ghost" href="play.html"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>Играть</a>

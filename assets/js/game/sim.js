@@ -5,6 +5,8 @@
 import { WORLD, LEVELS, endlessParams, POWERUPS } from './levels.js';
 
 const { H, GROUND, GRAVITY, FLAP, MAX_FALL, RADIUS, GATE_W } = WORLD;
+const FIRST_GATE = 560; // расстояние от Мии до первых ворот
+const FINISH_GAP = 1.2; // финиш стоит в 1.2 шага за последними воротами
 
 function mulberry32(a) {
   return function () {
@@ -63,7 +65,9 @@ export class Sim {
     const p = this.params();
     this.speed = p.speed;
     this.theme = p.theme;
-    this.nextGateX = this.miaX + 560;
+    this.nextGateX = this.miaX + FIRST_GATE;
+    // Длина сюжетного уровня известна заранее: ворота стоят с постоянным шагом.
+    this.trackLen = mode === 'story' ? FIRST_GATE + (this.level.gates - 1) * this.level.spacing + this.level.spacing * FINISH_GAP : 0;
     this.prevAnchor = { x: this.miaX + 200, y: 330 };
 
     this.events = [];
@@ -78,11 +82,9 @@ export class Sim {
     return this.mode === 'story' ? this.level.gates : Infinity;
   }
 
-  /** Насколько пройден уровень, 0..1 */
+  /** Насколько пройден сюжетный уровень, 0..1. В бесконечном режиме всегда 0. */
   get progress() {
-    if (this.mode !== 'story' || this.finishX == null) return this.mode === 'story' ? this.passed / (this.totalGates + 1) : 0;
-    const start = this.miaX;
-    return clamp((this.dist + this.miaX - start) / (this.finishX - start), 0, 1);
+    return this.trackLen ? clamp(this.dist / this.trackLen, 0, 1) : 0;
   }
 
   emit(type, data) {
@@ -105,7 +107,7 @@ export class Sim {
     while (this.spawned < this.totalGates && this.nextGateX - this.dist < this.viewW + 260) this.spawnGate();
     if (this.mode === 'story' && this.spawned >= this.totalGates && this.finishX == null) {
       const last = this.gates[this.gates.length - 1];
-      this.finishX = last.x + this.level.spacing * 1.2;
+      this.finishX = last.x + this.level.spacing * FINISH_GAP;
       // дорожка сердечек к финишу
       for (let i = 1; i <= 3; i++) {
         this.addItem('heart', lerp(last.x + GATE_W, this.finishX, i / 4), lerp(last.baseY, 330, smooth(i / 4)));
@@ -171,8 +173,8 @@ export class Sim {
     }
 
     const hz = idx > 0 ? p.hazards : [];
-    if (hz.includes('drop') && r() < 0.75) {
-      this.emitters.push({ x: midX, period: 1.5, timer: r() * 1.5 });
+    if (hz.includes('drop') && r() < 0.6) {
+      this.emitters.push({ x: midX, period: 1.7, timer: r() * 1.7 });
       midBusy = true;
     }
     if (hz.includes('balloon') && !midBusy && r() < 0.55) {

@@ -23,17 +23,48 @@ let memoryOnly = false;
 
 function read() {
   if (cache) return cache;
-  let data = {};
+  let raw = null;
   try {
-    data = JSON.parse(localStorage.getItem(KEY) || '{}') || {};
+    raw = localStorage.getItem(KEY);
   } catch (e) {
-    memoryOnly = true; // приватный режим / запрет хранилища — играем без сохранения
+    memoryOnly = true; // приватный режим или запрет хранилища — играем без сохранения
   }
-  cache = { ...DEFAULTS, ...data };
-  cache.levels = { ...(data.levels || {}) };
-  cache.notes = [...(data.notes || [])];
-  cache.seenNotes = [...(data.seenNotes || [])];
-  cache.skins = Array.from(new Set(['super', ...(data.skins || [])]));
+  let data = {};
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) data = parsed;
+    } catch (e) {
+      // запись испорчена — начинаем с чистого листа, следующая запись её заменит
+    }
+  }
+  // Каждое поле проверяем: сохранение могли поправить руками или оно осталось от старой версии.
+  const count = (v) => (Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
+  const ids = (v) => (Array.isArray(v) ? Array.from(new Set(v.filter((x) => Number.isInteger(x) && x > 0))) : []);
+  const levels = {};
+  if (data.levels && typeof data.levels === 'object') {
+    for (const [id, l] of Object.entries(data.levels)) {
+      if (!l || typeof l !== 'object' || !Number.isInteger(+id)) continue;
+      levels[id] = { done: !!l.done, stars: Math.min(3, count(l.stars)), hearts: count(l.hearts) };
+    }
+  }
+  const skins = Array.isArray(data.skins) ? data.skins.filter((x) => typeof x === 'string') : [];
+  cache = {
+    ...data, // незнакомые поля сохраняем: их могут добавить будущие игры
+    ...DEFAULTS,
+    hearts: count(data.hearts),
+    totalHearts: count(data.totalHearts),
+    best: count(data.best),
+    levels,
+    notes: ids(data.notes),
+    seenNotes: ids(data.seenNotes),
+    skins: Array.from(new Set(['super', ...skins])),
+    skin: typeof data.skin === 'string' ? data.skin : 'super',
+    sound: data.sound !== false,
+    music: data.music !== false,
+    plays: count(data.plays),
+  };
+  if (!cache.skins.includes(cache.skin)) cache.skin = 'super';
   return cache;
 }
 
@@ -44,6 +75,13 @@ function write() {
   } catch (e) {
     memoryOnly = true;
   }
+}
+
+// Сайт открыт в двух вкладках: если в другой что-то изменилось, перечитываем при следующем обращении.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === KEY || e.key === null) cache = null;
+  });
 }
 
 export const save = {

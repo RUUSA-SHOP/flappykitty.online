@@ -3,6 +3,11 @@
 
 import { save } from './storage.js';
 
+// Страницу вернули кнопкой «Назад» из памяти браузера — в игре за это время мог измениться прогресс.
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) location.reload();
+});
+
 /* ---------- кошелёк в шапке ---------- */
 
 const walletBox = document.querySelector('[data-wallet-box]');

@@ -175,6 +175,14 @@
   justify-content: space-between;
   width: 100%;
 }
+.topbar__group {
+  display: flex;
+  gap: 10px;
+}
+.iconbtn[aria-pressed='true'] {
+  color: var(--plum-soft);
+  background: #ece3df;
+}
 
 .iconbtn {
   display: grid;
@@ -374,8 +382,9 @@
   transform: translateY(-50%);
   filter: drop-shadow(0 0 0 #fff) drop-shadow(0 1px 0 rgba(58, 29, 46, 0.8));
 }
+/* в бесконечном режиме полоски нет, но место остаётся — кнопка паузы не прыгает */
 .hud__track[hidden] {
-  display: block;
+  display: block !important;
   visibility: hidden;
 }
 .hud__score {

@@ -1,6 +1,6 @@
 /* Flappy Kitty · главный модуль: экраны, ввод, игровой цикл. */
 
-import { CONFIG, isBirthday } from '../config.js';
+import { CONFIG, setSignature, isBirthday } from '../config.js';
 import { save } from '../storage.js';
 import { LEVELS, SKINS, POWERUPS } from './levels.js';
 import { Sim } from './sim.js';
@@ -43,6 +43,7 @@ let last = 0;
 let pendingTimer = null;
 let afterNote = null;
 let frozen = false;
+let musicStarted = false; // музыка включается с первым полётом и дальше играет везде, кроме паузы
 const images = {};
 const hud = {};
 
@@ -64,6 +65,13 @@ async function applySkin(id) {
 }
 
 async function boot() {
+  // play.html?reset=1 — начать с чистого листа (удобно перед тем, как дарить)
+  if (params.has('reset')) {
+    if (window.confirm('Сбросить весь прогресс: уровни, сердечки, облики и записки?')) save.reset();
+    params.delete('reset');
+    const q = params.toString();
+    history.replaceState(null, '', location.pathname + (q ? '?' + q : ''));
+  }
   fillNames();
   const d = save.data;
   sound.setSound(d.sound);
@@ -103,12 +111,19 @@ function go(name) {
   if (name !== 'play') $('#hint').hidden = true;
   if (name === 'menu') {
     clearTimeout(pendingTimer);
+    bankHearts();
     attract();
     refreshMenu();
   }
   if (name === 'levels') renderLevels();
   if (name === 'wardrobe') renderSkins();
-  const focusable = $(`.screen[data-name="${name}"] .btn:not(.btn--ghost), .screen[data-name="${name}"] .btn`);
+  if (musicStarted) {
+    if (name === 'pause') sound.stopMusic();
+    else sound.startMusic();
+  }
+  // с клавиатуры удобно сразу попадать на главную кнопку экрана
+  const scr = $(`.screen[data-name="${name}"]`);
+  const focusable = scr && ($('.btn:not(.btn--ghost):not([hidden]):not([disabled])', scr) || $('.btn:not([hidden]):not([disabled])', scr));
   if (focusable && matchMedia('(hover: hover)').matches) focusable.focus({ preventScroll: true });
 }
 
@@ -126,6 +141,7 @@ function refreshMenu() {
   const best = $('#menuBest');
   best.hidden = !d.best;
   best.textContent = `Рекорд: ${d.best}`;
+  syncToggles();
 }
 
 /** Фоновая сцена для меню: Мия парит по центру, мир медленно плывёт. */
@@ -237,8 +253,19 @@ function renderSkins() {
 
 /* ---------- старт игры ---------- */
 
+/** Кладёт в кошелёк сердечки, собранные в текущем полёте и ещё не учтённые.
+    Вызывается при любом выходе из полёта — победа, проигрыш, «Заново», «В меню», закрытие вкладки, —
+    поэтому собранное не пропадает, и ничего не засчитывается дважды. */
+function bankHearts() {
+  if (!sim || sim.attract) return;
+  const fresh = sim.hearts - (sim.banked || 0);
+  if (fresh > 0) save.addHearts(fresh);
+  sim.banked = sim.hearts;
+}
+
 function startLevel(id) {
   clearTimeout(pendingTimer);
+  bankHearts();
   mode = 'story';
   levelId = id;
   const l = LEVELS[id - 1];
@@ -256,6 +283,7 @@ function startLevel(id) {
 
 function startEndless() {
   clearTimeout(pendingTimer);
+  bankHearts();
   mode = 'endless';
   sim = new Sim({ mode: 'endless', viewW: renderer.viewW, seed: Date.now() % 1e9 });
   renderer.particles.length = 0;
@@ -267,10 +295,10 @@ function startEndless() {
 
 function beginPlay() {
   save.set({ plays: save.data.plays + 1 });
+  sound.unlock();
+  musicStarted = true;
   go('play');
   $('#hint').hidden = false;
-  sound.unlock();
-  sound.startMusic();
 }
 
 function restart() {
@@ -391,7 +419,7 @@ function onEvent(ev) {
       break;
     case 'theme':
       sound.setTheme(ev.theme);
-      toast(THEMES[ev.theme].name);
+      toast(ev.theme === 'love' ? `Дорога к ${CONFIG.her.dative}` : THEMES[ev.theme].name);
       break;
     case 'win':
       sound.play('win');
@@ -422,12 +450,12 @@ function showWin() {
   const bonus = stars * 5;
   const earned = sim.hearts + bonus;
   save.completeLevel(levelId, stars, sim.pathHearts);
-  save.addHearts(earned);
+  bankHearts();
+  save.addHearts(bonus);
 
   $('#winEyebrow').textContent = `Уровень ${levelId} · ${levelName(l)}`;
   const icons = $$('#winStars .icon');
   icons.forEach((el) => el.classList.remove('on'));
-  go('win');
   // порядок появления: левая, правая, центральная
   [0, 2, 1].slice(0, stars).forEach((idx, i) => {
     setTimeout(() => {
@@ -446,10 +474,19 @@ function showWin() {
   $('#winHearts').textContent = `+${earned}`;
   $('#winStars').setAttribute('aria-label', `Звёзд: ${stars} из 3`);
 
-  const seen = save.data.seenNotes.includes(levelId);
+  // Первое прохождение ведёт к записке. Если она уже прочитана — можно сразу лететь дальше.
   const isFinal = levelId === LEVELS.length;
+  const hasNote = isFinal ? !!CONFIG.finalLetter : CONFIG.notes.some((n) => n.level === levelId);
+  const seen = save.data.seenNotes.includes(levelId);
+  const btnNote = $('#btnNote');
+  const btnNext = $('#btnWinNext');
+  btnNote.hidden = !hasNote;
+  btnNote.className = seen ? 'btn btn--ghost btn--small' : 'btn';
   $('#btnNoteLabel').textContent = seen ? (isFinal ? 'Перечитать письмо' : 'Перечитать записку') : isFinal ? 'Открыть письмо' : 'Открыть записку';
+  btnNext.hidden = hasNote && !seen;
+  btnNext.textContent = isFinal ? 'В меню' : `Дальше · уровень ${levelId + 1}`;
   $('#btnWinRetry').hidden = stars >= 3;
+  go('win');
 }
 
 function showNote() {
@@ -465,7 +502,7 @@ function showNote() {
     p.textContent = par.trim();
     box.appendChild(p);
   });
-  $('#noteSign').textContent = isFinal ? CONFIG.from : `— ${note.from || CONFIG.cat.name}`;
+  setSignature($('#noteSign'), isFinal ? CONFIG.from : `— ${note.from || CONFIG.cat.name}`);
   $('#btnNoteNext').textContent = isFinal ? 'В меню' : `Дальше · уровень ${levelId + 1}`;
   save.markNoteSeen(levelId);
   sound.play('paper');
@@ -481,7 +518,7 @@ function nextAfterWin() {
 
 function showLose() {
   const l = LEVELS[levelId - 1];
-  save.addHearts(sim.hearts);
+  bankHearts();
   $('#loseEyebrow').textContent = `Уровень ${levelId} · ${levelName(l)}`;
   $('#loseText').textContent = LOSE_LINES[Math.floor(Math.random() * LOSE_LINES.length)];
   const p = Math.round(sim.progress * 100);
@@ -496,7 +533,7 @@ function showOver() {
   const d = save.data;
   const isNew = sim.passed > d.best;
   if (isNew) save.set({ best: sim.passed });
-  save.addHearts(sim.hearts);
+  bankHearts();
   $('#overScore').textContent = sim.passed;
   $('#overBest').textContent = save.data.best;
   $('#overNew').hidden = !isNew || sim.passed === 0;
@@ -509,19 +546,25 @@ function showOver() {
 function pause() {
   if (screen !== 'play' || !sim || sim.status === 'won' || sim.status === 'lost' || sim.status === 'dying') return;
   syncToggles();
-  sound.stopMusic();
   go('pause');
 }
 function resume() {
   if (screen !== 'pause') return;
+  sound.unlock();
   go('play');
   $('#hint').hidden = sim.status !== 'ready';
-  sound.startMusic();
   last = performance.now();
 }
 function syncToggles() {
-  $('#tglSound').setAttribute('aria-pressed', String(save.data.sound));
-  $('#tglMusic').setAttribute('aria-pressed', String(save.data.music));
+  const d = save.data;
+  $('#tglSound').setAttribute('aria-pressed', String(d.sound));
+  $('#tglMusic').setAttribute('aria-pressed', String(d.music));
+  // кнопка в меню выключает и включает всё сразу
+  const anyOn = d.sound || d.music;
+  const mute = $('#btnMute');
+  mute.setAttribute('aria-pressed', String(!anyOn));
+  mute.setAttribute('aria-label', anyOn ? 'Выключить звук' : 'Включить звук');
+  $('use', mute).setAttribute('href', anyOn ? '#i-sound' : '#i-mute');
 }
 
 /* ---------- ввод ---------- */
@@ -546,6 +589,13 @@ function bind() {
   // не даём странице прокручиваться и масштабироваться во время игры
   stage.addEventListener('touchmove', (e) => { if (screen === 'play') e.preventDefault(); }, { passive: false });
   stage.addEventListener('contextmenu', (e) => e.preventDefault());
+  // iOS: щипок двумя пальцами не должен увеличивать игру
+  document.addEventListener('gesturestart', (e) => e.preventDefault());
+  // Браузеры включают звук только из «настоящего» жеста (отпускание пальца, клик, клавиша).
+  // После сворачивания вкладки звук засыпает — будим его при первом же касании.
+  for (const type of ['pointerup', 'touchend', 'click', 'keydown']) {
+    window.addEventListener(type, () => sound.unlock(), { capture: true, passive: true });
+  }
 
   window.addEventListener('keydown', (e) => {
     if (e.repeat) return;
@@ -563,10 +613,19 @@ function bind() {
     }
   });
 
+  // вкладку закрыли посреди полёта — собранные сердечки всё равно остаются
+  window.addEventListener('pagehide', bankHearts);
+
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       if (screen === 'play') pause();
-      else sound.stopMusic();
+      bankHearts();
+      sound.stopMusic();
+      sound.sleep();
+    } else {
+      sound.wake();
+      if (musicStarted && screen !== 'pause') sound.startMusic();
+      last = performance.now();
     }
   });
 
@@ -602,6 +661,16 @@ function bind() {
   $('#btnWinRetry').addEventListener('click', () => { sound.play('click'); restart(); });
   $('#btnAgain').addEventListener('click', () => { sound.play('click'); restart(); });
   $('#btnNote').addEventListener('click', showNote);
+  $('#btnWinNext').addEventListener('click', () => { sound.play('click'); nextAfterWin(); });
+  $('#btnMute').addEventListener('click', () => {
+    const on = !(save.data.sound || save.data.music);
+    save.set({ sound: on, music: on });
+    sound.setSound(on);
+    sound.setMusic(on);
+    if (on && musicStarted) sound.startMusic();
+    syncToggles();
+    sound.play('click');
+  });
   $('#btnNoteNext').addEventListener('click', () => { sound.play('click'); (afterNote || nextAfterWin)(); });
   $('#tglSound').addEventListener('click', () => {
     const on = !save.data.sound;
@@ -615,6 +684,7 @@ function bind() {
     save.set({ music: on });
     sound.setMusic(on);
     syncToggles();
+    sound.play('click');
   });
 }
 

@@ -108,6 +108,11 @@ img {
   height: auto;
 }
 
+/* Атрибут hidden должен прятать элемент всегда, даже если у класса задан display. */
+[hidden] {
+  display: none !important;
+}
+
 h1,
 h2,
 h3,
@@ -142,6 +147,15 @@ button {
   height: 1.15em;
   flex: none;
   fill: currentColor;
+}
+/* сердечко внутри строки текста (подпись под письмом) */
+.icon--heart {
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  margin-inline: 0.12em;
+  vertical-align: -0.06em;
+  color: var(--rose);
 }
 
 /* ---------- кнопки-«наклейки» ---------- */

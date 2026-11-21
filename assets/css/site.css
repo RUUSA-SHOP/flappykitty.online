@@ -169,6 +169,34 @@ main {
     font-size: 0.98rem;
   }
 }
+/* Узкие телефоны: в шапке рядом стоят логотип, кошелёк и кнопка «Играть» */
+@media (max-width: 380px) {
+  .site-head__in {
+    column-gap: 10px;
+  }
+  .brand {
+    font-size: 1.1rem;
+  }
+  .head-end {
+    gap: 8px;
+  }
+  .nav a {
+    padding: 7px 6px;
+    font-size: 0.9rem;
+  }
+}
+@media (max-width: 350px) {
+  .brand span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .nav {
+    gap: 0;
+  }
+}
 
 /* ---------- подвал ---------- */
 

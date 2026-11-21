@@ -5,11 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <title>Играть · Flappy Kitty</title>
   <meta name="description" content="Flappy Kitty — Мия летит через шесть уровней и собирает сердечки.">
+  <!-- Сайт личный: просим поисковики его не индексировать. -->
+  <meta name="robots" content="noindex">
   <meta name="theme-color" content="#3a1d2e">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:title" content="Flappy Kitty — Мия научилась летать">
+  <meta property="og:description" content="Шесть уровней, целое небо сердечек и записка после каждого.">
+  <meta property="og:url" content="https://flappykitty.online/play.html">
+  <meta property="og:image" content="https://flappykitty.online/assets/img/og.jpg">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="assets/img/icons/favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="assets/img/icons/apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Flappy Kitty">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="preload" href="assets/fonts/nunito-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="assets/fonts/pacifico-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
@@ -25,12 +36,12 @@
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
   <symbol id="i-home" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></symbol>
   <symbol id="i-sound" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></symbol>
   <symbol id="i-music" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></symbol>
   <symbol id="i-mail" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></symbol>
   <symbol id="i-restart" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></symbol>
-  <symbol id="i-paw" viewBox="0 0 24 24"><path d="M4.5 9.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zm4.5-4a2.5 2.5 0 100-5 2.5 2.5 0 000 5zm6 0a2.5 2.5 0 100-5 2.5 2.5 0 000 5zm4.5 4a2.5 2.5 0 100-5 2.5 2.5 0 000 5zm-2.16 5.36c-.87-1.02-1.6-1.89-2.48-2.91-.46-.54-1.05-1.08-1.75-1.32-.11-.04-.22-.07-.33-.09-.25-.04-.52-.04-.78-.04s-.53 0-.79.05c-.11.02-.22.05-.33.09-.7.24-1.28.78-1.75 1.32-.87 1.02-1.6 1.89-2.48 2.91-1.31 1.31-2.92 2.76-2.62 4.79.29 1.02 1.02 2.03 2.33 2.32.73.15 3.06-.44 5.54-.44h.18c2.48 0 4.81.58 5.54.44 1.31-.29 2.04-1.31 2.33-2.32.31-2.04-1.3-3.49-2.61-4.8z"/></symbol>
   <symbol id="i-infinity" viewBox="0 0 24 24"><path d="M18.6 6.62c-1.44 0-2.8.56-3.77 1.53L12 10.66 10.48 12h.01L7.8 14.39c-.64.64-1.49.99-2.4.99-1.87 0-3.39-1.51-3.39-3.38S3.53 8.62 5.4 8.62c.91 0 1.76.35 2.44 1.03l1.13 1 1.51-1.34L9.22 8.2C8.2 7.18 6.84 6.62 5.4 6.62 2.42 6.62 0 9.04 0 12s2.42 5.38 5.4 5.38c1.44 0 2.8-.56 3.77-1.53l2.83-2.5.01.01L13.52 12h-.01l2.69-2.39c.64-.64 1.49-.99 2.4-.99 1.87 0 3.39 1.51 3.39 3.38s-1.52 3.38-3.39 3.38c-.9 0-1.76-.35-2.44-1.03l-1.14-1.01-1.51 1.34 1.27 1.12c1.02 1.01 2.37 1.57 3.82 1.57 2.98 0 5.4-2.41 5.4-5.38s-2.42-5.37-5.4-5.37z"/></symbol>
   <symbol id="i-hanger" viewBox="0 0 24 24"><path d="M21.6 18.2L13 11.75v-.91c1.65-.49 2.8-2.17 2.43-4.05-.26-1.31-1.3-2.4-2.61-2.7C10.54 3.57 8.5 5.3 8.5 7.5h2c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5c0 .84-.69 1.52-1.53 1.5-.54-.01-.97.45-.97.99v1.76L2.4 18.2c-.77.58-.36 1.8.6 1.8h18c.96 0 1.37-1.22.6-1.8zM6 18l6-4.5 6 4.5H6z"/></symbol>
   <symbol id="i-grid" viewBox="0 0 24 24"><path d="M4 4h7v7H4zm9 0h7v7h-7zM4 13h7v7H4zm9 0h7v7h-7z"/></symbol>
@@ -67,9 +78,14 @@
   <!-- ===== меню ===== -->
   <section class="screen screen--menu" data-name="menu" hidden>
     <header class="topbar">
-      <a class="iconbtn iconbtn--light" href="index.html" aria-label="На сайт">
-        <svg class="icon" aria-hidden="true"><use href="#i-home"/></svg>
-      </a>
+      <div class="topbar__group">
+        <a class="iconbtn" href="index.html" aria-label="На сайт">
+          <svg class="icon" aria-hidden="true"><use href="#i-home"/></svg>
+        </a>
+        <button class="iconbtn" id="btnMute" type="button" aria-pressed="false" aria-label="Выключить звук">
+          <svg class="icon" aria-hidden="true"><use href="#i-sound"/></svg>
+        </button>
+      </div>
       <div class="wallet" aria-label="Сердечек в кошельке">
         <svg class="icon" aria-hidden="true"><use href="#i-heart"/></svg><span data-wallet>0</span>
       </div>
@@ -167,6 +183,7 @@
       <ul class="goals" id="winGoals"></ul>
       <p class="reward"><svg class="icon" aria-hidden="true"><use href="#i-heart"/></svg><span id="winHearts">+0</span> в кошелёк</p>
       <div class="panel__stack">
+        <button class="btn" id="btnWinNext" type="button" hidden>Дальше</button>
         <button class="btn" id="btnNote" type="button"><svg class="icon" aria-hidden="true"><use href="#i-mail"/></svg><span id="btnNoteLabel">Открыть записку</span></button>
         <button class="btn btn--ghost btn--small" id="btnWinRetry" type="button"><svg class="icon" aria-hidden="true"><use href="#i-restart"/></svg>Ещё раз на три звезды</button>
       </div>

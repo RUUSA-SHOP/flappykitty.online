@@ -233,6 +233,8 @@ export class Renderer {
 
     ctx.restore();
 
+    // вспышки на весь экран отключаются вместе с остальной анимацией («уменьшить движение»)
+    if (this.reduceMotion) this.flash = 0;
     if (this.flash > 0.01) {
       ctx.fillStyle = `rgba(${this.flashColor},${this.flash})`;
       ctx.fillRect(0, 0, W, VH);

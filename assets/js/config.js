@@ -21,6 +21,7 @@ export const CONFIG = {
   },
 
   // Подпись под финальным письмом. Впиши своё имя или оставь так.
+  // Знак ❤ (или ♥) в подписи заменяется нарисованным сердечком — оно выглядит одинаково на любом телефоне.
   from: 'Твой ❤',
 
   // Праздничный режим: в этот день игра поздравляет с днём рождения.
@@ -93,4 +94,25 @@ export const CONFIG = {
 export function isBirthday(date = new Date()) {
   const b = CONFIG.birthday;
   return !!(b && b.enabled && date.getMonth() + 1 === b.month && date.getDate() === b.day);
+}
+
+/** Пишет подпись в элемент; символы сердца заменяет значком из набора страницы (#i-heart). */
+export function setSignature(node, text) {
+  node.textContent = '';
+  String(text)
+    .split(/[\u2764\u2665]\uFE0F?/)
+    .forEach((part, i) => {
+      if (i > 0) {
+        const NS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('class', 'icon icon--heart');
+        svg.setAttribute('role', 'img');
+        svg.setAttribute('aria-label', 'сердечко');
+        const use = document.createElementNS(NS, 'use');
+        use.setAttribute('href', '#i-heart');
+        svg.append(use);
+        node.append(svg);
+      }
+      if (part) node.append(part);
+    });
 }
