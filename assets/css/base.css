@@ -1,0 +1,249 @@
+/* ============================================================
+   Flappy Kitty · общая основа: шрифты, цвета, кнопки.
+   Подключается и на сайте, и в игре.
+   ============================================================ */
+
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 200 1000;
+  font-display: swap;
+  src: url('../fonts/nunito-cyrillic-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 200 1000;
+  font-display: swap;
+  src: url('../fonts/nunito-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Pacifico';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/pacifico-cyrillic-400-normal.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Pacifico';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/pacifico-latin-400-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Caveat';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../fonts/caveat-cyrillic-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Caveat';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../fonts/caveat-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  /* палитра снята с фотографий: розовый дождевик, золотая шёрстка, белые розы */
+  --cream: #fff7f0;
+  --paper: #fffdf9;
+  --blush: #fbdde2;
+  --pink: #f6b8c4;
+  --rose: #d6456a;
+  --rose-deep: #b22f53;
+  --plum: #3a1d2e;
+  --plum-soft: #6e4a5c;
+  --honey: #d9963f;
+  --gold: #f4c97b;
+  --sage: #8dbb8a;
+  --sage-deep: #4f8a55;
+  --sky: #bfe3f5;
+
+  --font: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --display: 'Pacifico', 'Nunito', cursive;
+  --hand: 'Caveat', 'Nunito', cursive;
+
+  --line: 3px solid var(--plum);
+  --pop: 0 5px 0 var(--plum);
+  --pop-lg: 0 8px 0 var(--plum);
+  --radius: 22px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  color: var(--plum);
+  background: var(--cream);
+  -webkit-font-smoothing: antialiased;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+img {
+  height: auto;
+}
+
+/* Атрибут hidden должен прятать элемент всегда, даже если у класса задан display. */
+[hidden] {
+  display: none !important;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+a {
+  color: var(--rose-deep);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid #2f7de1;
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.icon {
+  width: 1.15em;
+  height: 1.15em;
+  flex: none;
+  fill: currentColor;
+}
+/* сердечко внутри строки текста (подпись под письмом) */
+.icon--heart {
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  margin-inline: 0.12em;
+  vertical-align: -0.06em;
+  color: var(--rose);
+}
+
+/* ---------- кнопки-«наклейки» ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  min-height: 52px;
+  padding: 0.6em 1.5em;
+  font-family: var(--font);
+  font-weight: 900;
+  font-size: 1.125rem;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  color: #fff;
+  background: var(--rose);
+  border: var(--line);
+  border-radius: 999px;
+  box-shadow: var(--pop);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.btn:hover {
+  background: var(--rose-deep);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 0 var(--plum);
+}
+.btn:active {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 var(--plum);
+}
+.btn--ghost {
+  color: var(--plum);
+  background: var(--paper);
+}
+.btn--ghost:hover {
+  background: var(--blush);
+}
+.btn--gold {
+  color: var(--plum);
+  background: var(--gold);
+}
+.btn--gold:hover {
+  background: #f0bd62;
+}
+.btn--big {
+  min-height: 64px;
+  padding-inline: 2em;
+  font-size: 1.375rem;
+}
+.btn--small {
+  min-height: 44px;
+  padding: 0.4em 1.1em;
+  font-size: 1rem;
+  box-shadow: 0 4px 0 var(--plum);
+}
+.btn[disabled],
+.btn[aria-disabled='true'] {
+  color: var(--plum-soft);
+  background: #ece3df;
+  box-shadow: 0 3px 0 var(--plum-soft);
+  border-color: var(--plum-soft);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

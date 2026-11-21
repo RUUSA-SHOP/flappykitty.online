@@ -1,0 +1,46 @@
+# Проверки на каждый pull request и на каждый коммит в main.
+# Запускают то же, что на своём компьютере: `npm test` и `npm run test:e2e`.
+name: Проверки
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: npm test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      # логика игры, целостность сайта, баланс уровней — без зависимостей
+      - run: npm test
+
+  e2e:
+    name: браузер
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      # Chrome уже установлен на машине GitHub, нужна только библиотека управления им
+      - run: npm i --no-save --ignore-scripts puppeteer-core
+      - name: Сквозная проверка в настоящем браузере
+        run: |
+          export CHROME_PATH="$(command -v google-chrome || command -v chromium-browser || command -v chromium)"
+          echo "Браузер: $CHROME_PATH"
+          npm run test:e2e

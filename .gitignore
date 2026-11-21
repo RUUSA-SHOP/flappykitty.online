@@ -1,0 +1,6 @@
+# библиотеки для сквозной проверки ставятся командой из README и в репозиторий не попадают
+node_modules
+package-lock.json
+.DS_Store
+Thumbs.db
+*.log
