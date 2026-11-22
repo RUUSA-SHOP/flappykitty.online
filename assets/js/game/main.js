@@ -492,13 +492,20 @@ function onEvent(ev) {
       sound.play('fish');
       break;
     case 'pop':
-      sound.play('pop');
+      sound.play(ev.kind === 'yarn' ? 'yarn' : 'pop');
       break;
     case 'croak':
       sound.play('croak');
       break;
+    case 'splash':
+      // капли падают часто и беззвучно; слышно только лягушонка
+      if (ev.kind === 'frog') sound.play('plop');
+      break;
     case 'clear':
-      sound.play('streak');
+      // дождь кончился: перелив и музыка светлеет
+      sound.play('clear');
+      sound.setTheme('rainbow');
+      buzz(20);
       break;
     case 'power':
       sound.play('power');
@@ -515,7 +522,7 @@ function onEvent(ev) {
       sound.play('gate');
       break;
     case 'warn':
-      sound.play('warn');
+      sound.play(ev.kind === 'bat' ? 'squeak' : 'warn');
       break;
     case 'wind':
       sound.play('wind');

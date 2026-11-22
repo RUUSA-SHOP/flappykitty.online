@@ -172,17 +172,24 @@ export const LEVELS = [
 /** Миры бесконечного режима — в том же порядке, что и сюжет. */
 export const ENDLESS_THEMES = ['living', 'kitchen', 'party', 'night', 'winter', 'rain', 'pond', 'plush', 'gothic', 'love'];
 const ENDLESS_STEP = 6; // мир меняется каждые шесть ворот: за средний забег видно больше половины миров
+// У каждого мира в бесконечном режиме — свой обитатель из сюжета (в гостиной спокойно: только шарики).
+const ENDLESS_HAZARD = { living: 'balloon', kitchen: 'drop', party: 'balloon', night: 'cucumber', winter: 'wind', rain: 'rain', pond: 'frog', plush: 'yarn', gothic: 'bat', love: 'balloon' };
 
 /** Параметры бесконечного режима: сложность растёт с каждыми воротами. */
 export function endlessParams(passed) {
   const k = Math.min(1, passed / 45);
+  const theme = ENDLESS_THEMES[Math.floor(passed / ENDLESS_STEP) % ENDLESS_THEMES.length];
+  // первые два мира — разминка: сначала пусто, потом только шарики с сердечками; дальше у каждого мира свой обитатель
+  const hazards = passed < ENDLESS_STEP ? [] : passed < ENDLESS_STEP * 2 ? ['balloon'] : [ENDLESS_HAZARD[theme]];
+  // со второго круга по мирам к обитателю добавляются огурцы (кроме мира летучих мышей — там хватает своих)
+  if (passed >= ENDLESS_STEP * ENDLESS_THEMES.length && !hazards.includes('cucumber') && !hazards.includes('bat')) hazards.push('cucumber');
   return {
-    theme: ENDLESS_THEMES[Math.floor(passed / ENDLESS_STEP) % ENDLESS_THEMES.length],
+    theme,
     speed: 172 + 70 * k,
     gap: 205 - 50 * k,
     spacing: 305 - 25 * k,
     move: passed > 12 ? Math.min(50, (passed - 12) * 2.5) : 0,
-    hazards: passed > 30 ? ['cucumber', 'balloon'] : passed > 8 ? ['balloon'] : [],
+    hazards,
     powerups: ['shield', 'magnet', 'catnip'],
   };
 }

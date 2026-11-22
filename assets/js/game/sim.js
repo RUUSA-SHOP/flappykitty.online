@@ -472,7 +472,7 @@ export class Sim {
             h.y = FROG_Y;
             h.vy = 0;
             h.state = 'sit';
-            this.emit('splash', { x: h.x, y: GROUND });
+            this.emit('splash', { x: h.x, y: GROUND, kind: 'frog' });
           }
         }
       }

@@ -89,6 +89,10 @@ test('бесконечный режим использует только сущ
     assert.ok(p.gap >= 150, 'просвет слишком узкий');
   }
   for (const th of ENDLESS_THEMES) assert.ok(THEMES[th], `нет темы «${th}»`);
+  assert.deepEqual(endlessParams(0).hazards, [], 'первые ворота бесконечного режима — без опасностей');
+  const met = new Set();
+  for (let n = 0; n < 60; n++) for (const h of endlessParams(n).hazards) met.add(h);
+  for (const h of ['balloon', 'cucumber', 'wind', 'rain', 'frog', 'yarn', 'bat']) assert.ok(met.has(h), `за первый круг по мирам не встретилось: ${h}`);
   assert.deepEqual([...ENDLESS_THEMES].sort(), LEVELS.map((l) => l.theme).sort(), 'в бесконечном режиме — миры всех уровней');
 });
 
@@ -336,7 +340,7 @@ test('лягушачий пруд: лягушонок предупреждает
   const s = watch(levelBy('pond').id, 77);
   assert.ok(s.types.has('frog'), 'нет ни одного лягушонка');
   assert.ok(s.events.has('croak'), 'лягушонок не предупредил о прыжке');
-  assert.ok(s.events.has('splash'), 'лягушонок не вернулся на воду');
+  assert.ok(s.events.has('splash:frog'), 'лягушонок не вернулся на воду');
   assert.ok(s.maxFrogY > 180 && s.maxFrogY < 290, `высота прыжка ${Math.round(s.maxFrogY)} — должна быть ниже середины экрана`);
 });
 

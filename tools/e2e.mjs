@@ -52,7 +52,8 @@ const rootServer = createServer({ base: '/' });
 await new Promise((r) => rootServer.listen(0, '127.0.0.1', r));
 const PAGES_URL = `http://ruusa-shop.github.io:${server.address().port}${BASE}`;
 const DOMAIN_URL = `http://flappykitty.online:${rootServer.address().port}/`;
-const browser = await puppeteer.launch({ executablePath, args, headless: true });
+// protocolTimeout: на слабой машине без видеокарты один долгий вызов (прогон уровня с отрисовкой) идёт дольше трёх минут по умолчанию
+const browser = await puppeteer.launch({ executablePath, args, headless: true, protocolTimeout: 600000 });
 
 const only = process.argv[2];
 const results = [];
@@ -110,7 +111,7 @@ async function open(url, { w = 390, h = 844, save = null, touch = false, date = 
 
 const stored = (page) => page.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), SAVE_KEY);
 const screen = (page) => page.evaluate(() => window.__fk.screen);
-const waitScreen = (page, name) => page.waitForFunction((n) => window.__fk && window.__fk.screen === n, { timeout: 30000 }, name);
+const waitScreen = (page, name) => page.waitForFunction((n) => window.__fk && window.__fk.screen === n, { timeout: 60000 }, name);
 const visible = (page, sel) =>
   page.evaluate((s) => {
     const el = document.querySelector(s);
@@ -400,7 +401,7 @@ await test('повторная победа: записку можно проп�
   const page = track(await game({ save: { levels: { 1: { done: true, stars: 3, hearts: 30 } }, notes: [1], seenNotes: [1], hearts: 10, totalHearts: 10, plays: 1 } }));
   await page.click('#btnLevels');
   await waitScreen(page, 'levels');
-  equal(await page.evaluate(() => [...document.querySelectorAll('#levelList .level')].map((b) => b.disabled)), [false, false, true, true, true, true], 'какие уровни открыты');
+  equal(await page.evaluate(() => [...document.querySelectorAll('#levelList .level')].map((b) => b.disabled)), upTo(TOTAL).map((id) => id > 2), 'какие уровни открыты');
   equal(await text(page, '#starTotal'), `3/${TOTAL * 3}`, 'счётчик звёзд');
   await page.click('#levelList li:nth-child(1) .level');
   await waitScreen(page, 'intro');
@@ -827,7 +828,7 @@ await test('стресс: все события, темы, облики и зв�
     const errors = [];
     sound.unlock();
     if (!sound.ctx) return { errors: ['AudioContext не создан'], state: null };
-    const names = ['flap', 'heart', 'streak', 'streakEnd', 'near', 'purr', 'seal', 'envelope', 'photo', 'fish', 'power', 'powerEnd', 'pop', 'croak', 'shield', 'hit', 'gate', 'warn', 'wind', 'win', 'lose', 'star', 'click', 'buy', 'nope', 'meow', 'paper', 'нет-такого'];
+    const names = ['flap', 'heart', 'streak', 'streakEnd', 'near', 'purr', 'seal', 'envelope', 'photo', 'fish', 'power', 'powerEnd', 'pop', 'yarn', 'squeak', 'plop', 'clear', 'croak', 'shield', 'hit', 'gate', 'warn', 'wind', 'win', 'lose', 'star', 'click', 'buy', 'nope', 'meow', 'paper', 'нет-такого'];
     for (const n of names) {
       try {
         sound.play(n, { streak: 37 });
@@ -836,7 +837,7 @@ await test('стресс: все события, темы, облики и зв�
         errors.push(`play(${n}): ${e.message}`);
       }
     }
-    for (const theme of [...themes, 'letter', 'нет-такой']) {
+    for (const theme of [...themes, 'rainbow', 'letter', 'нет-такой']) {
       for (const mood of [{}, { intensity: 0.5 }, { intensity: 1, boost: true }, { intensity: 2, danger: true }, { intensity: -1 }]) {
         try {
           sound.setTheme(theme);
@@ -895,7 +896,7 @@ await test('стресс: все события, темы, облики и зв�
             sim.step(1 / 120);
             for (const ev of sim.events) { seen.add(ev.type); r.handle(ev, sim); }
             sim.events.length = 0;
-            if (i % 40 === 0) r.draw(sim, 0.05);
+            if (i % 60 === 0) r.draw(sim, 0.05); // кадр раз в полсекунды игрового времени: уровней десять, а отрисовка без видеокарты медленная
           }
           // события, которые в этом забеге не встретились, — с полями и без
           for (const type of all) {
