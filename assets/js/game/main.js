@@ -44,6 +44,14 @@ let pendingTimer = null;
 let afterNote = null;
 let frozen = false;
 let musicStarted = false; // музыка включается с первым полётом и дальше играет везде, кроме паузы
+let hitStop = 0; // «стоп-кадр» после удара: мир замирает на долю секунды, и удар ощущается весомее
+let timeScale = 1; // замедление времени в момент победы
+let attractT = 0;
+let lineNo = 0; // какую реплику Мия скажет следующей
+let bubbleTimer = null;
+let envelopeTimer = null;
+let wakeLock = null;
+const calm = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const images = {};
 const hud = {};
 
@@ -92,6 +100,11 @@ async function boot() {
   else go('menu');
   last = performance.now();
   requestAnimationFrame(frame);
+  // Мия здоровается сама — так понятно, что она живая и её можно потрогать
+  setTimeout(() => {
+    const lines = CONFIG.miaLines || [];
+    if (screen === 'menu' && lines.length && sayLine(lines[lineNo % lines.length], { quiet: true })) lineNo++;
+  }, 1300);
 }
 
 function fillNames() {
@@ -109,6 +122,16 @@ function go(name) {
   $$('.screen').forEach((s) => (s.hidden = s.dataset.name !== name));
   $('#hud').hidden = !(name === 'play' || name === 'pause');
   if (name !== 'play') $('#hint').hidden = true;
+  if (name !== 'menu') hideBubble();
+  if (name !== 'note') closeLetter();
+  if (name === 'play') {
+    keepAwake(true);
+    aimHearts(); // счётчик только что появился на экране — запоминаем, куда лететь сердечкам
+  }
+  else if (name !== 'pause') keepAwake(false);
+  hitStop = 0;
+  timeScale = 1;
+  if (name !== 'play' && name !== 'pause') sound.setMood({ intensity: name === 'win' || name === 'note' ? 0.55 : 0.2 });
   if (name === 'menu') {
     clearTimeout(pendingTimer);
     bankHearts();
@@ -142,6 +165,72 @@ function refreshMenu() {
   best.hidden = !d.best;
   best.textContent = `Рекорд: ${d.best}`;
   syncToggles();
+}
+
+/* ---------- Мия в меню: её можно потрогать ---------- */
+
+function sayLine(text, { quiet = false } = {}) {
+  const b = $('#bubble');
+  if (!text || screen !== 'menu' || !sim) return false;
+  b.hidden = true;
+  void b.offsetWidth; // перезапускает анимацию появления
+  b.textContent = text;
+  // облачко стоит над головой Мии; координаты мира переводим в пиксели экрана
+  const at = renderer.toCss(sim.miaX, sim.hoverY - 66);
+  b.style.left = at.x + 'px';
+  b.style.top = at.y + 'px';
+  b.hidden = false;
+  if (quiet) {
+    // Приветствие без касания не должно закрывать подзаголовок: на самых маленьких экранах места над Мией нет.
+    // размеры берём без учёта анимации появления (она начинается с уменьшенного облачка)
+    const c = canvas.getBoundingClientRect();
+    const t = $('.menu__sub').getBoundingClientRect();
+    const top = c.top + at.y - b.offsetHeight;
+    const left = c.left + at.x - b.offsetWidth / 2;
+    if (top < t.bottom + 4 && left + b.offsetWidth > t.left && left < t.right) {
+      b.hidden = true;
+      return false;
+    }
+  }
+  clearTimeout(bubbleTimer);
+  bubbleTimer = setTimeout(hideBubble, 2400);
+  return true;
+}
+
+function hideBubble() {
+  clearTimeout(bubbleTimer);
+  const b = $('#bubble');
+  if (b) b.hidden = true;
+}
+
+function pokeMia() {
+  const lines = CONFIG.miaLines || [];
+  renderer.poke(sim);
+  sound.play(lineNo % 3 === 2 ? 'purr' : 'meow');
+  buzz(15);
+  if (lines.length) sayLine(lines[lineNo++ % lines.length]);
+}
+
+/** Не даём экрану телефона погаснуть посреди полёта. Не везде поддерживается — тогда просто ничего не делаем. */
+function keepAwake(on) {
+  try {
+    if (on && !wakeLock && navigator.wakeLock && !document.hidden) {
+      navigator.wakeLock
+        .request('screen')
+        .then((l) => {
+          wakeLock = l;
+          l.addEventListener('release', () => {
+            if (wakeLock === l) wakeLock = null;
+          });
+        })
+        .catch(() => {});
+    } else if (!on && wakeLock) {
+      wakeLock.release().catch(() => {});
+      wakeLock = null;
+    }
+  } catch (e) {
+    /* не страшно */
+  }
 }
 
 /** Фоновая сцена для меню: Мия парит по центру, мир медленно плывёт. */
@@ -323,6 +412,15 @@ function resetHud() {
   updateHud();
 }
 
+/** Запоминает, где на экране счётчик сердечек: собранные сердечки летят к нему. */
+function aimHearts() {
+  const icon = $('.hud__hearts .icon');
+  const r = icon && icon.getBoundingClientRect();
+  if (!r || !r.width) return (renderer.hudHeart = null);
+  const c = canvas.getBoundingClientRect();
+  renderer.hudHeart = renderer.toWorld(r.left + r.width / 2 - c.left, r.top + r.height / 2 - c.top);
+}
+
 function updateHud() {
   if (!sim) return;
   if (hud.lives !== sim.lives) {
@@ -386,7 +484,17 @@ function onEvent(ev) {
       sound.play('flap');
       break;
     case 'heart':
-      sound.play('heart');
+      sound.play('heart', { streak: ev.streak });
+      break;
+    case 'streak':
+      sound.play('streak');
+      buzz(20);
+      break;
+    case 'streakEnd':
+      sound.play('streakEnd');
+      break;
+    case 'near':
+      sound.play('near');
       break;
     case 'fish':
       sound.play('fish');
@@ -403,6 +511,7 @@ function onEvent(ev) {
     case 'shieldBreak':
       sound.play('shield');
       buzz(30);
+      hitStop = 0.05;
       break;
     case 'gate':
       sound.play('gate');
@@ -416,6 +525,7 @@ function onEvent(ev) {
     case 'hit':
       sound.play('hit');
       buzz(ev.lives > 0 ? 60 : [80, 40, 120]);
+      hitStop = ev.lives > 0 ? 0.08 : 0.13;
       break;
     case 'theme':
       sound.setTheme(ev.theme);
@@ -423,6 +533,8 @@ function onEvent(ev) {
       break;
     case 'win':
       sound.play('win');
+      buzz([30, 40, 30, 40, 80]);
+      if (!calm) timeScale = 0.3; // миг победы тянется чуть дольше
       pendingTimer = setTimeout(showWin, 1500);
       break;
     case 'lose':
@@ -504,11 +616,93 @@ function showNote() {
   });
   setSignature($('#noteSign'), isFinal ? CONFIG.from : `— ${note.from || CONFIG.cat.name}`);
   $('#btnNoteNext').textContent = isFinal ? 'В меню' : `Дальше · уровень ${levelId + 1}`;
+  fillPhoto(levelId);
+  // строки появляются одна за другой: письмо — неторопливо, записки — быстрее
+  const letter = $('#letter');
+  letter.style.setProperty('--gap', isFinal ? '0.55s' : '0.16s');
+  $$('#noteNo, #noteTitle, #noteText p, #notePhoto, #noteSign').forEach((el, i) => el.style.setProperty('--i', i));
   save.markNoteSeen(levelId);
-  sound.play('paper');
   afterNote = nextAfterWin;
   go('note');
-  $('#letter').scrollIntoView({ block: 'start' });
+  if (isFinal) {
+    // Финал: сначала запечатанный конверт. Письмо появится, когда его откроют.
+    const env = $('#envelope');
+    env.classList.remove('is-open');
+    env.hidden = false;
+    env.disabled = false;
+    $('#envelopeHint').hidden = false;
+    letter.hidden = true;
+    $('#noteActions').hidden = true;
+    renderer.fest = true;
+    if (matchMedia('(hover: hover)').matches) env.focus({ preventScroll: true });
+  } else {
+    sound.play('paper');
+    revealLetter();
+  }
+}
+
+function fillPhoto(id) {
+  const fig = $('#notePhoto');
+  const ph = (CONFIG.photos || {})[id];
+  fig.hidden = !ph;
+  fig.textContent = '';
+  if (!ph) return;
+  const img = document.createElement('img');
+  img.src = `assets/img/gallery/${ph.file}-thumb.webp`;
+  img.alt = ph.alt || '';
+  img.width = 640;
+  img.height = 853;
+  img.decoding = 'async';
+  const cap = document.createElement('figcaption');
+  cap.textContent = ph.caption || '';
+  fig.append(img, cap);
+}
+
+function revealLetter() {
+  const letter = $('#letter');
+  $('#envelope').hidden = true;
+  $('#envelopeHint').hidden = true;
+  letter.hidden = false;
+  letter.classList.remove('letter--reveal');
+  void letter.offsetWidth;
+  letter.classList.add('letter--reveal');
+  $('#noteActions').hidden = false;
+  // читать начинают сверху. Не scrollIntoView: в первый миг анимации листок сдвинут, и прокрутка промахивается
+  letter.parentElement.scrollTop = 0;
+}
+
+function openEnvelope() {
+  const env = $('#envelope');
+  if (env.hidden || env.disabled) return;
+  env.disabled = true;
+  $('#envelopeHint').hidden = true;
+  sound.unlock();
+  sound.play('seal');
+  sound.play('envelope');
+  buzz([20, 60, 20]);
+  // музыка письма — тихая и медленная; играет, пока письмо открыто
+  if (musicStarted) sound.setTheme('letter');
+  env.classList.add('is-open');
+  clearTimeout(envelopeTimer);
+  envelopeTimer = setTimeout(
+    () => {
+      if (screen !== 'note') return;
+      sound.play('paper');
+      revealLetter();
+      const b = $('#btnNoteNext');
+      if (matchMedia('(hover: hover)').matches) b.focus({ preventScroll: true });
+    },
+    calm ? 0 : 1250
+  );
+}
+
+/** Уходим с экрана записки: гасим праздник и возвращаем музыку уровня. */
+function closeLetter() {
+  clearTimeout(envelopeTimer);
+  if (renderer.fest) {
+    renderer.fest = false;
+    if (sim) sound.setTheme(sim.theme);
+  }
 }
 
 function nextAfterWin() {
@@ -581,6 +775,13 @@ function bind() {
 
   stage.addEventListener('pointerdown', (e) => {
     sound.unlock();
+    if (screen === 'menu' && sim && sim.attract && !e.target.closest('button, a')) {
+      // тап по Мии в меню: она отзывается
+      const c = canvas.getBoundingClientRect();
+      const p = renderer.toWorld(e.clientX - c.left, e.clientY - c.top);
+      if (Math.hypot(p.x - sim.miaX, p.y - sim.mia.y) < 78) pokeMia();
+      return;
+    }
     if (screen !== 'play') return;
     if (e.target.closest('button, a')) return;
     e.preventDefault();
@@ -622,8 +823,10 @@ function bind() {
       bankHearts();
       sound.stopMusic();
       sound.sleep();
+      keepAwake(false);
     } else {
       sound.wake();
+      if (screen === 'play') keepAwake(true);
       if (musicStarted && screen !== 'pause') sound.startMusic();
       last = performance.now();
     }
@@ -661,6 +864,7 @@ function bind() {
   $('#btnWinRetry').addEventListener('click', () => { sound.play('click'); restart(); });
   $('#btnAgain').addEventListener('click', () => { sound.play('click'); restart(); });
   $('#btnNote').addEventListener('click', showNote);
+  $('#envelope').addEventListener('click', openEnvelope);
   $('#btnWinNext').addEventListener('click', () => { sound.play('click'); nextAfterWin(); });
   $('#btnMute').addEventListener('click', () => {
     const on = !(save.data.sound || save.data.music);
@@ -690,6 +894,8 @@ function bind() {
 
 function resize() {
   const w = renderer.resize();
+  hideBubble();
+  if (screen === 'play' || screen === 'pause') aimHearts();
   if (!sim) return;
   if (sim.attract) {
     sim.viewW = w;
@@ -709,11 +915,33 @@ function frame(now) {
   last = now;
   if (frozen) return;
   if (dt > 0.1) dt = 0.1; // вкладка была в фоне — не «прыгаем»
+  // Метка времени кадра бывает чуть раньше, чем момент снятия с паузы: время назад не идёт.
+  if (dt < 0) dt = 0;
   if (!sim) return;
 
   const running = screen !== 'pause';
+  let viewDt = dt;
   if (running) {
-    acc += dt;
+    if (hitStop > 0) {
+      // стоп-кадр: мир стоит, а вспышка и тряска продолжаются
+      hitStop -= dt;
+    } else {
+      acc += dt * timeScale;
+      viewDt = dt * timeScale;
+    }
+    if (timeScale < 1) timeScale = Math.min(1, timeScale + dt * 0.9);
+    if (sim.attract) {
+      // в меню Мия время от времени взмахивает крыльями
+      attractT -= dt;
+      if (attractT <= 0) {
+        attractT = 0.85 + Math.random() * 0.5;
+        renderer.wingT = 0;
+      }
+    } else if (screen === 'play') {
+      // музыка «раскрывается» к финишу и с длинной серией сердечек
+      const base = mode === 'story' ? sim.progress * 0.8 : Math.min(0.8, sim.passed / 40);
+      sound.setMood({ intensity: base + Math.min(0.3, sim.streak * 0.02), danger: mode === 'story' && sim.lives === 1 && sim.status === 'playing', boost: sim.catnip > 0 });
+    }
     while (acc >= STEP) {
       sim.step(STEP);
       acc -= STEP;
@@ -727,16 +955,22 @@ function frame(now) {
     }
     if (screen === 'play') updateHud();
   }
-  renderer.draw(sim, running ? dt : 0);
+  renderer.draw(sim, running ? viewDt : 0);
 }
 
 // крючки для отладки и автотестов
 window.__fk = {
   get sim() { return sim; },
   get screen() { return screen; },
-  go, startLevel, startEndless, beginPlay, showWin, showNote, save, renderer,
+  go, startLevel, startEndless, beginPlay, showWin, showNote, save, renderer, sound,
   freeze(v = true) { frozen = v; },
 };
+
+// Игра по сети не ходит, но после первого открытия должна запускаться и без связи (метро, самолёт).
+// На компьютере разработчика включается адресом play.html?sw=1.
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || params.has('sw'))) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
 
 boot().catch((e) => {
   console.error(e);

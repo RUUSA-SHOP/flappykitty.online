@@ -14,7 +14,13 @@ export class Renderer {
     this.ctx = canvas.getContext('2d');
     this.particles = [];
     this.time = 0;
-    this.shake = 0;
+    this.trauma = 0; // «встряска» 0…1: тряска кадра пропорциональна её квадрату и быстро гаснет
+    this.stretch = 1; // растяжение Мии по вертикали: >1 вытянулась (взмах), <1 сплющилась (удар)
+    this.stretchV = 0;
+    this.fest = false; // праздник: снизу вверх летят сердечки (финальное письмо)
+    this.festT = 0;
+    this.hudHeart = null; // куда улетают собранные сердечки — координаты счётчика в мире
+    this.scale = 1;
     this.flash = 0;
     this.flashColor = '255,255,255';
     this.wingT = 1;
@@ -37,6 +43,7 @@ export class Renderer {
     const scale = Math.min(cssH / WORLD.H, cssW / 380);
     this.viewW = cssW / scale;
     this.viewH = cssH / scale;
+    this.scale = scale;
     this.k = scale * dpr;
     // на высоких экранах мир сдвигается вниз: сверху остаётся место под счётчики
     this.offY = Math.max(0, Math.min(60, (this.viewH - WORLD.H) * 0.55));
@@ -47,6 +54,26 @@ export class Renderer {
       this.canvas.height = h;
     }
     return this.viewW;
+  }
+
+  /** Точка мира → точка на экране (CSS-пиксели от левого верхнего угла холста). */
+  toCss(x, y) {
+    return { x: x * this.scale, y: (y + this.offY) * this.scale };
+  }
+  /** Точка на экране → точка мира. */
+  toWorld(cx, cy) {
+    return { x: cx / this.scale, y: cy / this.scale - this.offY };
+  }
+
+  addTrauma(v) {
+    this.trauma = Math.min(1, this.trauma + v);
+  }
+
+  /** Мию «потрогали» в меню: она подпрыгивает и рассыпает сердечки. */
+  poke(sim) {
+    this.stretch = 1.22;
+    this.wingT = 0;
+    this.burst(sim.miaX, sim.mia.y - 10, this.reduceMotion ? 5 : 10, ['#FF5C7A', '#FFB3C6', '#FFFFFF'], 230, 'heart');
   }
 
   setSkin(skin, img) {
@@ -64,10 +91,32 @@ export class Renderer {
     switch (ev.type) {
       case 'flap':
         this.wingT = 0;
+        this.stretch = 1.16;
         this.puff(mx - 26, my + 14, 2, 'rgba(255,255,255,.8)', 60);
         break;
-      case 'heart':
-        this.burst(sx, sy, 5, ['#FF5C7A', '#FFB3C6', '#FFFFFF'], 150, 'spark');
+      case 'heart': {
+        // чем длиннее серия, тем богаче искры
+        const lvl = Math.min(10, ev.streak || 1);
+        this.burst(sx, sy, 5 + Math.floor(lvl / 2), ['#FF5C7A', '#FFB3C6', '#FFFFFF'], 150 + lvl * 8, 'spark');
+        if (this.hudHeart && !this.reduceMotion) {
+          this.particles.push({ kind: 'fly', x: sx, y: sy, x0: sx, y0: sy, tx: this.hudHeart.x, ty: this.hudHeart.y, vx: 0, vy: 0, g: 0, life: 0, max: 0.45, size: 11, color: '#FF5C7A', rot: 0, vr: 0 });
+        }
+        break;
+      }
+      case 'streak':
+        this.ring(mx, my, '#FFC94A');
+        this.burst(mx, my, 14, ['#FFC94A', '#FFE9A6', '#FFFFFF', '#FF5C7A'], 260, 'spark');
+        this.text(mx, my - 58, `${ev.n} подряд! +${ev.bonus}`, '#FFC94A');
+        break;
+      case 'near':
+        // искры от края ворот, мимо которого Мия прошла впритирку
+        for (let i = 0; i < 7; i++) {
+          this.particles.push({
+            kind: 'spark', x: mx + (Math.random() - 0.5) * 30, y: sy, vx: -120 - Math.random() * 160, vy: (ev.up ? 1 : -1) * (30 + Math.random() * 120), g: 200,
+            life: 0, max: 0.35 + Math.random() * 0.3, size: 2.6 + Math.random() * 2.4, color: ['#FFFFFF', '#FFE9A6'][i % 2], rot: Math.random() * 6, vr: 10,
+          });
+        }
+        this.text(mx, my + (ev.up ? 50 : -50), 'Впритирку!', '#FFFFFF');
         break;
       case 'fish':
         this.burst(sx, sy, 10, ['#FFC94A', '#FFE9A6', '#FFFFFF'], 220, 'spark');
@@ -85,10 +134,12 @@ export class Renderer {
         this.ring(mx, my, '#8FD3F4');
         this.burst(mx, my, 12, ['#BFE9FF', '#FFFFFF'], 260, 'spark');
         this.text(mx, my - 54, 'Пузырь лопнул', '#8FD3F4');
-        this.shake = 6;
+        this.addTrauma(0.45);
+        this.stretch = 0.84;
         break;
       case 'hit':
-        this.shake = 12;
+        this.addTrauma(ev.lives > 0 ? 0.7 : 0.95);
+        this.stretch = 0.7;
         this.flash = 0.35;
         this.flashColor = '255,92,122';
         this.burst(mx, my, 12, ['#E8C08A', '#D9A066', '#FFF3E0'], 260, 'puff');
@@ -101,10 +152,18 @@ export class Renderer {
         this.flash = 0.6;
         this.flashColor = '255,255,255';
         break;
-      case 'win':
+      case 'win': {
         this.flash = 0.5;
         this.flashColor = '255,255,255';
-        for (let i = 0; i < 46; i++) {
+        // большое сердце на финише «лопается» кольцами и конфетти; в последнем уровне — щедрее
+        const big = sim.level && sim.level.theme === 'love';
+        const fx = sim.finishX != null ? sim.finishX - sim.dist : mx;
+        this.ring(fx, 320, '#FF5C7A');
+        this.ring(fx, 320, '#FFFFFF');
+        this.burst(fx, 320, big ? 40 : 22, ['#F58CA5', '#F4C97B', '#9CC7E8', '#FFFFFF', '#FF5C7A'], 420, 'confetti');
+        this.addTrauma(0.3);
+        this.stretch = 1.2;
+        for (let i = 0; i < (big ? 80 : 46); i++) {
           this.particles.push({
             kind: 'heart', x: this.viewW * Math.random(), y: -20 - Math.random() * 200, vx: (Math.random() - 0.5) * 60, vy: 120 + Math.random() * 160,
             g: 30, life: 0, max: 3.5 + Math.random() * 2, size: 7 + Math.random() * 9, color: ['#FF5C7A', '#FFB3C6', '#FFFFFF', '#FFC94A'][i % 4], rot: Math.random() * 6, vr: (Math.random() - 0.5) * 4,
@@ -112,12 +171,15 @@ export class Renderer {
         }
         this.burst(mx, my, 20, ['#FF5C7A', '#FFB3C6', '#FFFFFF'], 320, 'heart');
         break;
+      }
     }
   }
 
   burst(x, y, n, colors, speed, kind) {
+    const turn = Math.random() * TAU;
     for (let i = 0; i < n; i++) {
-      const a = Math.random() * TAU;
+      // частицы расходятся ровным кругом с небольшой случайностью — без «дыр» и комков
+      const a = turn + ((i + (Math.random() - 0.5) * 0.7) / n) * TAU;
       const v = speed * (0.35 + Math.random() * 0.65);
       this.particles.push({
         kind, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 40, g: kind === 'spark' ? 300 : 420, life: 0, max: 0.45 + Math.random() * 0.45,
@@ -149,13 +211,31 @@ export class Renderer {
 
     ctx.setTransform(this.k, 0, 0, this.k, 0, 0);
     ctx.save();
-    if (this.shake > 0.2 && !this.reduceMotion) {
+    if (this.trauma > 0.02 && !this.reduceMotion) {
+      // Сила тряски — квадрат «встряски»: слабые события едва заметны, сильные ощутимы.
+      // Смещение берём из плавных синусоид, а не из случайных чисел, — кадр качается, а не дрожит.
+      const p = this.trauma * this.trauma;
+      const ox = 15 * p * (Math.sin(t * 71) * 0.6 + Math.sin(t * 43.3 + 1.7) * 0.4);
+      const oy = 15 * p * (Math.sin(t * 59 + 0.6) * 0.6 + Math.sin(t * 37.1 + 2.9) * 0.4);
       // чуть увеличиваем кадр, чтобы при тряске не оголялись края
       ctx.translate(W / 2, VH / 2);
-      ctx.scale(1.04, 1.04);
-      ctx.translate(-W / 2 + (Math.random() - 0.5) * this.shake, -VH / 2 + (Math.random() - 0.5) * this.shake);
+      ctx.scale(1.05, 1.05);
+      ctx.rotate(0.022 * p * Math.sin(t * 47 + 0.9));
+      ctx.translate(-W / 2 + ox, -VH / 2 + oy);
     }
-    this.shake *= Math.pow(0.002, dt);
+    this.trauma = Math.max(0, this.trauma - dt * 1.9);
+
+    // праздник: сердечки поднимаются снизу, пока открыто финальное письмо
+    if (this.fest && dt > 0) {
+      this.festT -= dt;
+      if (this.festT <= 0) {
+        this.festT = this.reduceMotion ? 0.7 : 0.16;
+        this.particles.push({
+          kind: 'heart', x: Math.random() * W, y: G + 60, vx: (Math.random() - 0.5) * 30, vy: -(70 + Math.random() * 90), g: -6, life: 0, max: 7 + Math.random() * 3,
+          size: 6 + Math.random() * 11, color: ['#FF5C7A', '#FFB3C6', '#FFFFFF', '#FFC94A'][Math.floor(Math.random() * 4)], rot: Math.random() * 6, vr: (Math.random() - 0.5) * 3,
+        });
+      }
+    }
     ctx.translate(0, this.offY);
 
     theme.sky(ctx, W, VH, t);
@@ -670,6 +750,16 @@ export class Renderer {
     ctx.translate(sim.miaX, m.y);
     const rot = sim.status === 'dying' || sim.status === 'lost' ? m.rot : m.rot * 0.5;
     ctx.rotate(rot);
+    // «сжатие и растяжение»: пружинка возвращает Мию к обычной форме
+    if (dt > 0) {
+      const step = Math.min(dt, 0.033);
+      this.stretchV += (-(this.stretch - 1) * 420 - this.stretchV * 22) * step;
+      this.stretch += this.stretchV * step;
+    }
+    if (!this.reduceMotion) {
+      const sy = Math.max(0.6, Math.min(1.3, this.stretch));
+      ctx.scale(1 / Math.pow(sy, 0.8), sy);
+    }
     if (blink) ctx.globalAlpha = 0.45;
 
     if (sim.catnip > 0) {
@@ -731,7 +821,7 @@ export class Renderer {
         case 'dot':
           ctx.fillStyle = p.color;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size * (1 - f * 0.6), 0, TAU);
+          ctx.arc(p.x, p.y, Math.max(0, p.size * (1 - f * 0.6)), 0, TAU);
           ctx.fill();
           break;
         case 'spark':
@@ -741,7 +831,7 @@ export class Renderer {
         case 'puff':
           ctx.fillStyle = p.color;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size * (0.6 + f), 0, TAU);
+          ctx.arc(p.x, p.y, Math.max(0, p.size * (0.6 + f)), 0, TAU);
           ctx.fill();
           break;
         case 'confetti':
@@ -761,11 +851,26 @@ export class Renderer {
           ctx.fill();
           ctx.restore();
           break;
+        case 'fly': {
+          // сердечко летит к счётчику: сначала чуть отлетает назад, потом разгоняется
+          const e = f * f * (3 - 2 * f);
+          const lift = Math.sin(f * Math.PI) * 46;
+          p.x = p.x0 + (p.tx - p.x0) * e;
+          p.y = p.y0 + (p.ty - p.y0) * e - lift;
+          ctx.globalAlpha = 0.95;
+          ctx.fillStyle = p.color;
+          heartPath(ctx, p.x, p.y, p.size * (1 - f * 0.45));
+          ctx.fill();
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 1.6;
+          ctx.stroke();
+          break;
+        }
         case 'ring':
           ctx.strokeStyle = p.color;
           ctx.lineWidth = 5 * (1 - f);
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size + f * 60, 0, TAU);
+          ctx.arc(p.x, p.y, Math.max(0, p.size + f * 60), 0, TAU);
           ctx.stroke();
           break;
         case 'text':
