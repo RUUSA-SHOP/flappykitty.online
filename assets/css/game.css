@@ -53,10 +53,18 @@
 .screen[hidden] {
   display: none;
 }
+/* Затемнение без размытия: размытие фона под окном заметно тормозило экран победы на слабых телефонах. */
 .screen--veil {
-  background: rgba(58, 29, 46, 0.5);
-  -webkit-backdrop-filter: blur(3px);
-  backdrop-filter: blur(3px);
+  background: rgba(58, 29, 46, 0.58);
+}
+/* Длинные списки (уровни, гардероб) начинаются сверху и прокручиваются вниз. Если их центрировать,
+   высокая панель вылезает за верхний край — шапку и кнопку «назад» не достать прокруткой. */
+.screen--list {
+  justify-content: flex-start;
+}
+.screen--list .panel {
+  flex: 0 0 auto;
+  margin-block: auto;
 }
 .screen--bottom {
   justify-content: flex-end;
@@ -548,6 +556,19 @@
 }
 .level[data-theme='winter'] .level__art {
   background: linear-gradient(160deg, #b6ddf8, #f5fbff);
+}
+.level[data-theme='rain'] .level__art {
+  background: linear-gradient(160deg, #8f9cc0, #d8d2e4 70%, #ffc3d0);
+}
+.level[data-theme='pond'] .level__art {
+  background: linear-gradient(160deg, #a9e0dc, #eef6c9 65%, #a8dc8c);
+}
+.level[data-theme='plush'] .level__art {
+  background: linear-gradient(160deg, #fff6ea, #f4d08a 60%, #f6b8c8);
+}
+.level[data-theme='gothic'] .level__art {
+  color: #ffe3ef;
+  background: linear-gradient(160deg, #1b0a24, #6e1b5e 55%, #e0679a);
 }
 .level[data-theme='love'] .level__art {
   color: #fff;

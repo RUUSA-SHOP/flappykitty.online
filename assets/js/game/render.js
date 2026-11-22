@@ -123,8 +123,22 @@ export class Renderer {
         this.text(sx, sy - 20, '+5', '#FFC94A');
         break;
       case 'pop':
-        this.burst(sx, sy, 16, ['#F58CA5', '#F4C97B', '#9CC7E8', '#FFFFFF', '#9CC79A'], 280, 'confetti');
+        if (ev.kind === 'yarn') {
+          // клубок разматывается: мягкие пушинки и два сердечка
+          this.burst(sx, sy, 10, ['#FFFFFF', '#FFE3EC', '#F4C97B', '#C9A7E8'], 190, 'puff');
+          this.burst(sx, sy, 4, ['#FF5C7A', '#FFB3C6'], 170, 'heart');
+        } else this.burst(sx, sy, 16, ['#F58CA5', '#F4C97B', '#9CC7E8', '#FFFFFF', '#9CC79A'], 280, 'confetti');
         if (ev.hue !== 9) this.text(sx, sy - 24, '+2', '#FF5C7A');
+        break;
+      case 'clear':
+        // дождь кончился
+        this.flash = 0.35;
+        this.flashColor = '255,244,214';
+        this.text(mx, my - 58, 'Дождь кончился!', '#FFC94A');
+        this.burst(mx, my, 12, ['#FF8FA8', '#FFE27A', '#9ED99A', '#8CC8F2', '#C3A6EC'], 240, 'heart');
+        break;
+      case 'croak':
+        this.text(sx, G - 96, 'Ква!', '#3F8F45');
         break;
       case 'power':
         this.ring(sx, sy, POWERUPS[ev.kind].color);
@@ -238,9 +252,11 @@ export class Renderer {
     }
     ctx.translate(0, this.offY);
 
-    theme.sky(ctx, W, VH, t);
-    theme.far(ctx, W, sim.scroll, t);
-    this.ambient(theme.ambient, W, sim.scroll, t);
+    // clear — насколько прояснилось после дождя (0…1); остальным темам это число не нужно
+    const clear = sim.clear || 0;
+    theme.sky(ctx, W, VH, t, clear);
+    theme.far(ctx, W, sim.scroll, t, clear);
+    this.ambient(theme.ambient, W, sim.scroll, t, clear);
 
     const wx = (x) => x - sim.dist;
 
@@ -261,11 +277,12 @@ export class Renderer {
       th.column(ctx, x, bot, g.w, G - bot + 30, 'top', g.idx, t);
     }
 
-    // краны на потолке
+    // краны на потолке и дождевые тучки
     for (const e of sim.emitters) {
       const x = wx(e.x);
-      if (x < -40 || x > W + 40) continue;
-      this.tap(x);
+      if (x < -70 || x > W + 70) continue;
+      if (e.kind === 'cloud') this.cloud(x, e.y, t, clear);
+      else this.tap(x);
     }
 
     // предметы
@@ -286,6 +303,9 @@ export class Renderer {
       if (h.type === 'drop') this.drop(x, h.y);
       else if (h.type === 'balloon') this.balloon(x, h.y, h.hue, t);
       else if (h.type === 'cucumber') this.cucumber(x, h.y, t);
+      else if (h.type === 'yarn') this.yarn(x, h.y, h.hue, t);
+      else if (h.type === 'bat') this.bat(x, h.y, t);
+      else if (h.type === 'frog') this.frog(x, h, t);
     }
 
     // след
@@ -308,7 +328,7 @@ export class Renderer {
     theme.ground(ctx, W, VH, sim.scroll);
 
     // предупреждения
-    for (const w of sim.warnings) this.warning(W, w.y, t);
+    for (const w of sim.warnings) this.warning(W, w.y, t, w.kind);
     if (sim.wind.state !== 'idle') this.wind(sim, W, t);
 
     ctx.restore();
@@ -322,9 +342,10 @@ export class Renderer {
     }
   }
 
-  ambient(kind, W, scroll, t) {
+  ambient(kind, W, scroll, t, clear = 0) {
     const ctx = this.ctx;
-    const n = kind === 'snow' ? 46 : 26;
+    if (kind === 'rain' && clear >= 1) return;
+    const n = kind === 'snow' ? 46 : kind === 'rain' ? 38 : 26;
     for (let i = 0; i < n; i++) {
       const a = hash(i + 1);
       const b = hash(i + 77);
@@ -383,6 +404,50 @@ export class Renderer {
           ctx.arc(x, y, 1.6 + c * 2.8, 0, TAU);
           ctx.fill();
           break;
+        case 'rain': {
+          // косые струйки; когда проясняется, они редеют и гаснут
+          if (i >= n * (1 - clear)) break;
+          const fall = t * (430 + c * 220);
+          y = mod(b * (G + 40) + fall, G + 40) - 20;
+          x = mod(a * span - scroll * 0.4 - fall * 0.22, span) - 30;
+          ctx.strokeStyle = `rgba(232,240,255,${(0.3 + c * 0.35) * (1 - clear)})`;
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x - 4.5, y + 20 + c * 10);
+          ctx.stroke();
+          break;
+        }
+        case 'pollen': {
+          // золотая пыльца над прудом
+          x = mod(a * span - scroll * 0.3 + Math.sin(t * 0.8 + i) * 22, span) - 30;
+          y = mod(b * G - t * (6 + c * 10) + Math.cos(t + i * 3) * 10, G);
+          const al = 0.4 + 0.45 * Math.abs(Math.sin(t * 1.3 + i));
+          ctx.fillStyle = `rgba(255,236,150,${al * 0.3})`;
+          ctx.beginPath();
+          ctx.arc(x, y, 6, 0, TAU);
+          ctx.fill();
+          ctx.fillStyle = `rgba(255,250,214,${al})`;
+          ctx.beginPath();
+          ctx.arc(x, y, 1.8 + c * 1.4, 0, TAU);
+          ctx.fill();
+          break;
+        }
+        case 'embers': {
+          // розовые искры поднимаются от свечей
+          x = mod(a * span - scroll * 0.35 + Math.sin(t * 1.1 + i) * 16, span) - 30;
+          y = mod(b * G - t * (20 + c * 30), G);
+          const al = 0.35 + 0.55 * Math.abs(Math.sin(t * 2 + i * 1.7));
+          ctx.fillStyle = `rgba(255,120,180,${al * 0.28})`;
+          ctx.beginPath();
+          ctx.arc(x, y, 6, 0, TAU);
+          ctx.fill();
+          ctx.fillStyle = `rgba(255,214,234,${al})`;
+          ctx.beginPath();
+          ctx.arc(x, y, 1.4 + c * 1.4, 0, TAU);
+          ctx.fill();
+          break;
+        }
         case 'hearts':
           x = mod(a * span - scroll * 0.35 + Math.sin(t + i) * 12, span) - 30;
           y = mod(b * G - t * (16 + c * 22), G);
@@ -447,6 +512,237 @@ export class Renderer {
     rr(ctx, x - 10, 14, 20, 12, 4);
     ctx.fill();
     ctx.stroke();
+  }
+
+  /** Дождевая тучка: из неё падают капли. Когда проясняется — белеет. */
+  cloud(x, y, t, clear = 0) {
+    const ctx = this.ctx;
+    const bob = Math.sin(t * 1.4 + x * 0.01) * 2;
+    ctx.save();
+    ctx.translate(x, y + bob);
+    const path = () => {
+      ctx.beginPath();
+      ctx.ellipse(0, 6, 44, 15, 0, 0, TAU);
+      ctx.ellipse(-20, -5, 21, 17, 0, 0, TAU);
+      ctx.ellipse(7, -12, 25, 21, 0, 0, TAU);
+      ctx.ellipse(27, 0, 17, 13, 0, 0, TAU);
+    };
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = clear > 0.5 ? '#9DB4D6' : '#3D4A70';
+    ctx.lineWidth = 5;
+    path();
+    ctx.stroke();
+    ctx.fillStyle = clear > 0.5 ? '#FFFFFF' : '#7785AE';
+    path();
+    ctx.fill();
+    ctx.fillStyle = clear > 0.5 ? 'rgba(210,226,246,.8)' : 'rgba(255,255,255,.22)';
+    ctx.beginPath();
+    ctx.ellipse(-12, -12, 12, 6, -0.3, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /** Клубок пряжи: не опасен, за него дают два сердечка. */
+  yarn(x, y, hue, t) {
+    const ctx = this.ctx;
+    const color = BALLOON_COLORS[hue % 4];
+    const edge = ['#B9506E', '#B98A2E', '#4F86B0', '#7E5DB0'][hue % 4];
+    ctx.save();
+    ctx.translate(x, y);
+    // хвостик нитки
+    ctx.strokeStyle = edge;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(14, 14);
+    ctx.bezierCurveTo(26, 26, 14 + 6 * Math.sin(t * 3 + x), 34, 28, 42);
+    ctx.stroke();
+    ctx.rotate(Math.sin(t * 1.6 + x * 0.01) * 0.25);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(0, 0, 20, 0, TAU);
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,.6)';
+    ctx.lineWidth = 2;
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.ellipse(0, i * 9, 26, 9, 0.5, Math.PI, TAU);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(i * 9, 0, 9, 26, 0.5, Math.PI * 0.5, Math.PI * 1.5);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.strokeStyle = edge;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, 20, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+    // сердечко-подсказка: это подарок, а не опасность
+    ctx.fillStyle = 'rgba(255,255,255,.95)';
+    heartPath(ctx, x, y + 1, 6.5);
+    ctx.fill();
+  }
+
+  /** Лягушонок на кувшинке. Перед прыжком приседает, по воде расходятся круги. */
+  frog(x, h, t) {
+    const ctx = this.ctx;
+    const base = G - 14; // высота, на которой он сидит (FROG_Y в sim.js)
+    // кувшинка под ним — всегда на воде
+    ctx.fillStyle = '#5FB24F';
+    ctx.strokeStyle = '#2F7A3C';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(x, G + 3, 30, 8, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    if (h.state === 'warn') {
+      // круги на воде: сейчас прыгнет
+      const k = 1 - Math.max(0, h.timer) / 0.6;
+      ctx.strokeStyle = `rgba(255,255,255,${0.9 * (1 - k)})`;
+      ctx.lineWidth = 3;
+      for (const r of [k, Math.max(0, k - 0.35)]) {
+        ctx.beginPath();
+        ctx.ellipse(x, G + 3, 30 + r * 46, 8 + r * 12, 0, 0, TAU);
+        ctx.stroke();
+      }
+      // и стрелка вверх — куда
+      const a = 0.5 + 0.5 * Math.sin(t * 20);
+      ctx.fillStyle = `rgba(255,92,122,${0.55 + a * 0.45})`;
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(x, base - 64 - a * 6);
+      ctx.lineTo(x + 12, base - 46 - a * 6);
+      ctx.lineTo(x - 12, base - 46 - a * 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    const air = h.state === 'jump';
+    const squash = h.state === 'warn' ? 0.78 + 0.06 * Math.sin(t * 30) : 1;
+    ctx.save();
+    ctx.translate(x, h.y + (h.state === 'warn' ? 4 : 0));
+    ctx.scale(air ? 0.9 : 1 / Math.sqrt(squash), air ? 1.14 : squash);
+    // лапки: в прыжке вытянуты
+    ctx.fillStyle = '#5BAA4A';
+    ctx.strokeStyle = '#2F6B2A';
+    ctx.lineWidth = 2;
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      if (air) ctx.ellipse(s * 10, 18, 4.5, 11, s * 0.25, 0, TAU);
+      else ctx.ellipse(s * 15, 10, 8, 5, 0, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+    }
+    // тело
+    ctx.fillStyle = '#7CCB5E';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.ellipse(0, 2, 17, 14, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#D6F2B8';
+    ctx.beginPath();
+    ctx.ellipse(0, 7, 10, 6.5, 0, 0, TAU);
+    ctx.fill();
+    // глаза на макушке
+    for (const s of [-1, 1]) {
+      ctx.fillStyle = '#7CCB5E';
+      ctx.beginPath();
+      ctx.arc(s * 9, -10, 7, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(s * 9, -10, 4.4, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#1F3F1C';
+      ctx.beginPath();
+      ctx.arc(s * 9, air ? -11.5 : -10, 2.2, 0, TAU);
+      ctx.fill();
+    }
+    // улыбка и румянец
+    ctx.strokeStyle = '#2F6B2A';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(0, -1, 7, 0.25, Math.PI - 0.25);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,140,165,.7)';
+    ctx.beginPath();
+    ctx.arc(-11, 1, 2.6, 0, TAU);
+    ctx.arc(11, 1, 2.6, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /** Летучая мышь с розовым бантиком: летит справа налево широкой волной. */
+  bat(x, y, t) {
+    const ctx = this.ctx;
+    const flap = Math.sin(t * 16 + y * 0.05);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = '#3A1648';
+    ctx.strokeStyle = '#FFA6CF';
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    for (const s of [-1, 1]) {
+      const tip = -12 * flap;
+      ctx.beginPath();
+      ctx.moveTo(s * 6, -4);
+      ctx.quadraticCurveTo(s * 18, -18 + tip, s * 32, -6 + tip);
+      ctx.quadraticCurveTo(s * 27, 0 + tip * 0.6, s * 25, 8 + tip * 0.5);
+      ctx.quadraticCurveTo(s * 20, 2 + tip * 0.3, s * 16, 9 + tip * 0.2);
+      ctx.quadraticCurveTo(s * 12, 4, s * 6, 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    // ушки и тело
+    ctx.beginPath();
+    ctx.moveTo(-9, -8);
+    ctx.lineTo(-8, -20);
+    ctx.lineTo(-2, -11);
+    ctx.lineTo(2, -11);
+    ctx.lineTo(8, -20);
+    ctx.lineTo(9, -8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 11, 12, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    // глаза и клычки
+    ctx.fillStyle = '#FFE3EF';
+    ctx.beginPath();
+    ctx.arc(-4.5, -2, 2.6, 0, TAU);
+    ctx.arc(4.5, -2, 2.6, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-4, 4);
+    ctx.lineTo(-2.5, 8);
+    ctx.lineTo(-1, 4);
+    ctx.moveTo(1, 4);
+    ctx.lineTo(2.5, 8);
+    ctx.lineTo(4, 4);
+    ctx.fill();
+    // бантик
+    ctx.fillStyle = '#FF5C9A';
+    ctx.beginPath();
+    ctx.moveTo(0, -13);
+    ctx.lineTo(-7, -17);
+    ctx.lineTo(-7, -9);
+    ctx.closePath();
+    ctx.moveTo(0, -13);
+    ctx.lineTo(7, -17);
+    ctx.lineTo(7, -9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   heart(x, y, s) {
@@ -666,12 +962,18 @@ export class Renderer {
     ctx.restore();
   }
 
-  warning(W, y, t) {
+  warning(W, y, t, kind) {
     const ctx = this.ctx;
     const a = 0.55 + 0.45 * Math.sin(t * 22);
     ctx.save();
     ctx.globalAlpha = a;
-    ctx.fillStyle = '#FF5C7A';
+    if (kind === 'bat') {
+      // мышь летит волной — показываем, какую полосу она займёт
+      ctx.fillStyle = 'rgba(255,92,154,.2)';
+      rr(ctx, W - 46, y - 52, 32, 104, 16);
+      ctx.fill();
+    }
+    ctx.fillStyle = kind === 'bat' ? '#C2337F' : '#FF5C7A';
     ctx.strokeStyle = '#FFFFFF';
     ctx.lineWidth = 3;
     ctx.beginPath();

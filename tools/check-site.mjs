@@ -203,6 +203,57 @@ if (exists('sw.js')) {
   for (const f of jsFiles.filter((x) => x.startsWith('assets/js/game/') || x === 'assets/js/config.js' || x === 'assets/js/storage.js')) {
     if (!files.includes(f)) err('sw.js', `скрипт игры ${f} не попал в CORE — без сети игра не откроется`);
   }
+  // фото к запискам тоже должны открываться без сети
+  const { CONFIG } = await import('../assets/js/config.js');
+  for (const [id, ph] of Object.entries(CONFIG.photos || {})) {
+    const f = `assets/img/gallery/${ph.file}-thumb.webp`;
+    if (!files.includes(f)) err('sw.js', `фото к записке № ${id} (${f}) не попало в CORE — без сети записка останется без снимка`);
+  }
+}
+
+/* ---------- число уровней: тексты страниц сверяются с игрой ---------- */
+
+{
+  // Уровни добавляются в levels.js, а «шесть уровней» остаётся в десятке текстов. Ловим это здесь.
+  const { LEVELS } = await import('../assets/js/game/levels.js');
+  const { CONFIG } = await import('../assets/js/config.js');
+  const N = LEVELS.length;
+  const WORDS = { один: 1, одного: 1, два: 2, двух: 2, три: 3, трёх: 3, четыре: 4, четырёх: 4, пять: 5, пяти: 5, пятью: 5, шесть: 6, шести: 6, шестью: 6, семь: 7, семи: 7, семью: 7, восемь: 8, восьми: 8, восемью: 8, девять: 9, девяти: 9, девятью: 9, десять: 10, десяти: 10, десятью: 10, одиннадцать: 11, двенадцать: 12 };
+  const ORD = { первого: 1, второго: 2, третьего: 3, четвёртого: 4, пятого: 5, шестого: 6, седьмого: 7, восьмого: 8, девятого: 9, десятого: 10, одиннадцатого: 11, двенадцатого: 12 };
+  const num = (w) => (/^\d+$/.test(w) ? +w : WORDS[w.toLowerCase()]);
+  const texts = [...pages.map(rel), 'README.md', 'AGENTS.md', 'docs/PLAN.md'].filter(exists).map((f) => [f, read(f)]);
+  texts.push(['assets/js/config.js → finalLetter', CONFIG.finalLetter.text]);
+  for (const [file, text] of texts) {
+    // «шесть уровней», «6 сюжетных уровней», «с десятью уровнями», «все шесть уровней»
+    for (const m of text.matchAll(/(?<![\wа-яё.,-])(\d+|[а-яё]+)\s+(?:сюжетны[а-яё]+\s+)?уровн(?:ей|ями|ях|я)(?![а-яё])/gi)) {
+      const n = num(m[1]);
+      if (n != null && n !== N) err(file, `«${m[0]}» — а уровней в игре ${N}`);
+    }
+    // «письмо после шестого (уровня)», «после шестого — письмо»
+    for (const m of text.matchAll(/после\s+([а-яё]+ого)(?:\s+уровня)?[^.!?\n]{0,24}письмо|письмо[^.!?\n]{0,24}после\s+([а-яё]+ого)(?![а-яё])/gi)) {
+      const n = ORD[(m[1] || m[2]).toLowerCase()];
+      if (n != null && n !== N) err(file, `«${m[0]}» — письмо открывается после уровня № ${N}`);
+    }
+  }
+  // карточки уровней на главной: столько же, сколько уровней, названия по порядку
+  if (exists('index.html')) {
+    const cards = [...read('index.html').matchAll(/class="lvl__n"[^>]*>(\d+)<[\s\S]*?<h3>([^<]+)<\/h3>/g)].map((m) => [+m[1], m[2].trim()]);
+    if (cards.length !== N) err('index.html', `карточек уровней ${cards.length}, а уровней в игре ${N}`);
+    const names = LEVELS.map((l) => (l.id === N ? `Дорога к ${CONFIG.her.dative}` : l.name));
+    cards.forEach(([n, name], i) => {
+      if (n !== i + 1 || name !== names[i]) err('index.html', `карточка № ${i + 1}: «${n}. ${name}», а в игре «${i + 1}. ${names[i]}»`);
+    });
+  }
+  // счётчик записок в разметке — до того, как его перерисует скрипт
+  if (exists('love.html')) {
+    const m = read('love.html').match(/id="noteCount">Открыто 0 из (\d+)</);
+    if (!m || +m[1] !== N) err('love.html', `счётчик записок «Открыто 0 из ${m ? m[1] : '?'}», должно быть ${N}`);
+  }
+  // счётчик звёзд в разметке — до того, как его перерисует скрипт
+  if (exists('play.html')) {
+    const m = read('play.html').match(/id="starTotal">0\/(\d+)</);
+    if (!m || +m[1] !== N * 3) err('play.html', `счётчик звёзд «0/${m ? m[1] : '?'}», должно быть 0/${N * 3}`);
+  }
 }
 
 /* ---------- манифест ---------- */

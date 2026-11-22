@@ -19,14 +19,6 @@ const canvas = $('#game');
 const renderer = new Renderer(canvas);
 const sound = new Sound();
 
-const TIPS = {
-  1: 'Тап, клик или пробел — взмах крыльев. У Мии три жизни на уровень.',
-  2: 'Из кранов на потолке падают капли. Мия не любит мокнуть.',
-  3: 'Свечи двигаются. Лопай шарики — в каждом два сердечка.',
-  4: 'Красный «!» справа — оттуда летит огурец. Уходи с его линии.',
-  5: 'Стрелки показывают, куда подует ветер. Дует вверх — маши реже, вниз — чаще.',
-  6: 'Здесь всё сразу. Долети до большого сердца.',
-};
 const LOSE_LINES = [
   'Мия прилегла отдохнуть. Но она уже готова лететь снова.',
   'Девять жизней — это в сумме. На уровень выдают три.',
@@ -365,7 +357,7 @@ function startLevel(id) {
   $('#introEyebrow').textContent = `Уровень ${id} из ${LEVELS.length} · ${l.gates} ворот`;
   $('#introName').textContent = levelName(l);
   $('#introStory').textContent = l.story;
-  $('#introTip').textContent = TIPS[id] || '';
+  $('#introTip').textContent = l.tip || ''; // подсказка живёт в самом уровне (levels.js), а не привязана к номеру
   resetHud();
   go('intro');
 }
@@ -501,6 +493,12 @@ function onEvent(ev) {
       break;
     case 'pop':
       sound.play('pop');
+      break;
+    case 'croak':
+      sound.play('croak');
+      break;
+    case 'clear':
+      sound.play('streak');
       break;
     case 'power':
       sound.play('power');
@@ -653,6 +651,7 @@ function fillPhoto(id) {
   img.width = 640;
   img.height = 853;
   img.decoding = 'async';
+  if (ph.pos) img.style.objectPosition = ph.pos; // какую часть снимка показать в рамке
   const cap = document.createElement('figcaption');
   cap.textContent = ph.caption || '';
   fig.append(img, cap);

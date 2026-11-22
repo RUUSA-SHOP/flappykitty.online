@@ -119,6 +119,91 @@ function plush(ctx, x, kind, alpha = 0.6) {
   ctx.restore();
 }
 
+/** Члены плюшевого совета — крупно: зайка в розовом шарфе, мишка с красным бантом, панда в полосатом свитере. */
+function council(ctx, x, kind) {
+  const ear = (dx, dy, rx, ry, rot, c) => {
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.ellipse(dx, dy, rx, ry, rot, 0, TAU);
+    ctx.fill();
+  };
+  const blob = (dx, dy, rx, ry, c) => ear(dx, dy, rx, ry, 0, c);
+  const face = (y, eye, nose) => {
+    ctx.fillStyle = eye;
+    ctx.beginPath();
+    ctx.arc(-17, y, 4.5, 0, TAU);
+    ctx.arc(17, y, 4.5, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = nose;
+    ctx.beginPath();
+    ctx.ellipse(0, y + 13, 6, 4.5, 0, 0, TAU);
+    ctx.fill();
+  };
+  ctx.save();
+  ctx.globalAlpha = 0.82;
+  ctx.translate(x, G - 18);
+  if (kind === 0) {
+    // зайка
+    ear(-26, -252, 17, 62, -0.2, '#F7ECDF');
+    ear(28, -248, 17, 62, 0.28, '#F7ECDF');
+    ear(-26, -248, 8, 44, -0.2, '#F6C9D3');
+    ear(28, -244, 8, 44, 0.28, '#F6C9D3');
+    blob(0, -72, 72, 76, '#F7ECDF');
+    blob(0, -72, 40, 46, '#FFF8F0');
+    blob(0, -168, 52, 46, '#F7ECDF');
+    face(-174, '#5B3A4A', '#E88AA4');
+    // розовый шарф
+    ctx.fillStyle = '#F29AB4';
+    rr(ctx, -50, -134, 100, 22, 11);
+    ctx.fill();
+    rr(ctx, 16, -126, 22, 62, 9);
+    ctx.fill();
+  } else if (kind === 1) {
+    // мишка
+    blob(-40, -206, 20, 20, '#CDAE95');
+    blob(40, -206, 20, 20, '#CDAE95');
+    blob(-40, -206, 10, 10, '#EBD3BF');
+    blob(40, -206, 10, 10, '#EBD3BF');
+    blob(0, -70, 72, 74, '#CDAE95');
+    blob(0, -66, 40, 44, '#EBD3BF');
+    blob(0, -164, 54, 48, '#CDAE95');
+    blob(0, -152, 24, 18, '#EBD3BF');
+    face(-172, '#4A332B', '#4A332B');
+    // красный бант
+    ctx.fillStyle = '#D9485F';
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(0, -120);
+      ctx.lineTo(s * 34, -138);
+      ctx.lineTo(s * 34, -102);
+      ctx.closePath();
+      ctx.fill();
+    }
+    blob(0, -120, 9, 9, '#B8364C');
+  } else {
+    // панда
+    blob(-42, -210, 22, 22, '#4A3F4A');
+    blob(42, -210, 22, 22, '#4A3F4A');
+    // свитер в полоску
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(0, -70, 74, 76, 0, 0, TAU);
+    ctx.clip();
+    ctx.fillStyle = '#F6B8C8';
+    ctx.fillRect(-80, -150, 160, 160);
+    ctx.fillStyle = '#FFF4EC';
+    for (let yy = -138; yy < 10; yy += 34) ctx.fillRect(-80, yy, 160, 15);
+    ctx.restore();
+    blob(-66, -84, 20, 34, '#4A3F4A');
+    blob(66, -84, 20, 34, '#4A3F4A');
+    blob(0, -166, 58, 50, '#FFFFFF');
+    ear(-20, -172, 12, 15, 0.35, '#4A3F4A');
+    ear(20, -172, 12, 15, -0.35, '#4A3F4A');
+    face(-172, '#FFFFFF', '#4A3F4A');
+  }
+  ctx.restore();
+}
+
 function balloon(ctx, x, y, r, color, stringLen = 90) {
   ctx.strokeStyle = 'rgba(120,80,95,.35)';
   ctx.lineWidth = 1.5;
@@ -157,6 +242,7 @@ function colOutline(ctx, x, y, w, h, color, lw = 2.5) {
    ТЕМЫ
    column(ctx, x, y, w, h, capAt, seed, t): колонна в прямоугольнике x,y,w,h;
    capAt = 'top' | 'bottom' — с какой стороны просвет (там рисуется «шапка»).
+   sky и far получают пятым числом k — «прояснение» 0…1 (нужно только теме «Под дождём»).
    ============================================================ */
 
 export const THEMES = {
@@ -738,7 +824,617 @@ export const THEMES = {
     },
   },
 
-  /* ---------- 6. Дорога к Насте ---------- */
+  /* ---------- 6. Под дождём ---------- */
+  // k — насколько прояснилось (0 — льёт, 1 — дождь кончился): небо светлеет, выходит радуга
+  rain: {
+    name: 'Под дождём',
+    ambient: 'rain',
+    hud: '#2F3A5C',
+    sky(ctx, W, VH, t, k = 0) {
+      ctx.fillStyle = vgrad(ctx, 0, G, ['#6C7CA6', '#8F9CC0', '#B9C0DA', '#D8D2E4']);
+      ctx.fillRect(0, -90, W, VH + 90);
+      if (k > 0) {
+        ctx.save();
+        ctx.globalAlpha = k;
+        ctx.fillStyle = vgrad(ctx, 0, G, ['#8EC3EC', '#BFE0F6', '#FBE6DA', '#FFE7C2']);
+        ctx.fillRect(0, -90, W, VH + 90);
+        // радуга
+        const cx = W * 0.5;
+        const cy = G + 60;
+        const bands = ['#FF8FA8', '#FFB86B', '#FFE27A', '#9ED99A', '#8CC8F2', '#C3A6EC'];
+        ctx.globalAlpha = k * 0.55;
+        ctx.lineWidth = 15;
+        bands.forEach((c, i) => {
+          ctx.strokeStyle = c;
+          ctx.beginPath();
+          ctx.arc(cx, cy, Math.max(120, W * 0.62 + 150) - i * 15, Math.PI, TAU);
+          ctx.stroke();
+        });
+        ctx.restore();
+      }
+    },
+    far(ctx, W, scroll, t, k = 0) {
+      // тучи: после дождя редеют и белеют
+      tile(W, scroll, 0.05, 330, (x, i) => {
+        const y = 70 + hash(i) * 90;
+        ctx.fillStyle = k > 0.5 ? `rgba(255,255,255,${0.75 - k * 0.3})` : `rgba(96,108,150,${0.5 - k * 0.3})`;
+        ctx.beginPath();
+        ctx.ellipse(x + 90, y, 78, 26, 0, 0, TAU);
+        ctx.ellipse(x + 50, y - 16, 40, 26, 0, 0, TAU);
+        ctx.ellipse(x + 112, y - 22, 48, 30, 0, 0, TAU);
+        ctx.fill();
+      }, 200);
+      // дома с тёплыми окнами
+      const houses = (factor, period, color, roof, winA, base, seedK) =>
+        tile(W, scroll, factor, period, (x, i) => {
+          const bw = period - 10;
+          const bh = base + hash(i * seedK) * 120;
+          ctx.fillStyle = color;
+          ctx.fillRect(x, G - bh, bw, bh);
+          ctx.fillStyle = roof;
+          ctx.beginPath();
+          ctx.moveTo(x - 6, G - bh);
+          ctx.lineTo(x + bw / 2, G - bh - 34);
+          ctx.lineTo(x + bw + 6, G - bh);
+          ctx.fill();
+          ctx.fillStyle = `rgba(255,222,150,${winA})`;
+          for (let r = 0; r < bh / 34 - 1; r++)
+            for (let c = 0; c < 3; c++) if (hash(i * 13 + r * 5 + c * 3 + seedK) > 0.45) rr(ctx, x + 12 + c * ((bw - 24) / 3), G - bh + 16 + r * 34, (bw - 24) / 3 - 9, 16, 3), ctx.fill();
+        }, period);
+      houses(0.1, 132, '#7F8BB4', '#6C78A4', 0.5, 150, 1.9);
+      houses(0.26, 170, '#6A769F', '#58648E', 0.75, 70, 3.7);
+      // зонтики сохнут у дороги
+      tile(W, scroll, 0.5, 410, (x, i) => {
+        const ux = x + 150;
+        const color = ['#F58CA5', '#F4C97B', '#9CC7E8', '#C9A7E8'][((i % 4) + 4) % 4];
+        ctx.strokeStyle = 'rgba(70,60,90,.55)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(ux, G - 86);
+        ctx.lineTo(ux, G - 8);
+        ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.arc(ux, G - 84, 46, Math.PI, TAU);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = 'rgba(255,255,255,.35)';
+        ctx.beginPath();
+        ctx.arc(ux, G - 84, 46, Math.PI * 1.28, Math.PI * 1.5);
+        ctx.lineTo(ux, G - 84);
+        ctx.fill();
+      }, 120);
+    },
+    ground(ctx, W, VH, scroll) {
+      ctx.fillStyle = '#67739A';
+      ctx.fillRect(0, G, W, VH - G);
+      ctx.fillStyle = '#98A4C6';
+      ctx.fillRect(0, G, W, 7);
+      // лужи с бликами
+      tile(W, scroll, 1, 150, (x, i) => {
+        const px = x + 30 + hash(i) * 50;
+        ctx.fillStyle = 'rgba(214,226,246,.42)';
+        ctx.beginPath();
+        ctx.ellipse(px, G + 28 + hash(i + 2) * 12, 40 + hash(i + 5) * 22, 8, 0, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.5)';
+        ctx.beginPath();
+        ctx.ellipse(px - 10, G + 26 + hash(i + 2) * 12, 12, 2, 0, 0, TAU);
+        ctx.fill();
+      }, 80);
+      ctx.fillStyle = '#4D587F';
+      ctx.fillRect(0, G, W, 2.5);
+    },
+    column(ctx, x, y, w, h, capAt) {
+      // водосточная труба с розовым раструбом — в цвет дождевика
+      const bx = x + 13;
+      const bw = w - 26;
+      ctx.fillStyle = hgrad(ctx, bx, bx + bw, ['#8799AE', '#D3DEE8', '#B4C3D2', '#8A9BB0']);
+      ctx.fillRect(bx, y, bw, h);
+      colOutline(ctx, bx, y, bw, h, '#4F5F7D');
+      // хомуты
+      const dir = capAt === 'top' ? 1 : -1;
+      const first = capAt === 'top' ? y + 74 : y + h - 74 - 12;
+      ctx.fillStyle = '#6F8098';
+      for (let r = 0; r < 14; r++) {
+        const by = first + dir * r * 104;
+        if (by < y || by > y + h - 12) break;
+        if (by < -40 || by > G + 20) continue;
+        rr(ctx, bx - 4, by, bw + 8, 12, 4);
+        ctx.fill();
+      }
+      const cy = capAt === 'top' ? y : y + h - 26;
+      ctx.fillStyle = hgrad(ctx, x, x + w, ['#F27C99', '#FFC3D0', '#F58CA5']);
+      rr(ctx, x - 5, cy, w + 10, 26, 9);
+      ctx.fill();
+      ctx.strokeStyle = '#B9506E';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.6)';
+      rr(ctx, x + 4, cy + 6, w - 8, 4, 2);
+      ctx.fill();
+    },
+  },
+
+  /* ---------- 7. Лягушачий пруд ---------- */
+  pond: {
+    name: 'Лягушачий пруд',
+    ambient: 'pollen',
+    hud: '#245B4A',
+    sky(ctx, W, VH) {
+      ctx.fillStyle = vgrad(ctx, 0, G, ['#A9E0DC', '#CDEFD9', '#EEF6C9', '#FFF0B8']);
+      ctx.fillRect(0, -90, W, VH + 90);
+      // летнее солнце
+      const sx = W * 0.74;
+      const g = ctx.createRadialGradient(sx, 120, 10, sx, 120, 230);
+      g.addColorStop(0, 'rgba(255,250,210,.9)');
+      g.addColorStop(1, 'rgba(255,250,210,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(sx - 230, -110, 460, 460);
+      ctx.fillStyle = '#FFF8D6';
+      ctx.beginPath();
+      ctx.arc(sx, 120, 40, 0, TAU);
+      ctx.fill();
+    },
+    far(ctx, W, scroll, t) {
+      // дальний берег и ивы
+      const hills = (factor, color, base, amp, period) => {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(0, G);
+        for (let x = 0; x <= W + 20; x += 20) {
+          const wx = x + scroll * factor;
+          ctx.lineTo(x, G - base - Math.sin(wx / period) * amp - Math.sin(wx / (period * 0.37) + 2) * amp * 0.35);
+        }
+        ctx.lineTo(W, G);
+        ctx.fill();
+      };
+      hills(0.08, 'rgba(120,190,150,.5)', 150, 40, 210);
+      hills(0.18, 'rgba(92,170,128,.6)', 84, 30, 150);
+      // камыши
+      tile(W, scroll, 0.36, 74, (x, i) => {
+        const hh = 110 + hash(i) * 130;
+        const lean = (hash(i + 7) - 0.5) * 26 + Math.sin(t * 0.9 + i) * 4;
+        ctx.strokeStyle = 'rgba(70,140,90,.75)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x + 20, G);
+        ctx.quadraticCurveTo(x + 20, G - hh * 0.5, x + 20 + lean, G - hh);
+        ctx.stroke();
+        if (hash(i + 3) > 0.4) {
+          ctx.fillStyle = 'rgba(122,82,52,.8)';
+          ctx.save();
+          ctx.translate(x + 20 + lean, G - hh);
+          ctx.rotate(lean / 90);
+          rr(ctx, -4.5, -26, 9, 30, 4.5);
+          ctx.fill();
+          ctx.restore();
+        }
+      }, 60);
+      // стрекозы
+      tile(W, scroll, 0.22, 520, (x, i) => {
+        const dx = x + 200 + Math.sin(t * 1.3 + i * 2) * 30;
+        const dy = 210 + hash(i) * 190 + Math.cos(t * 1.7 + i) * 14;
+        ctx.fillStyle = 'rgba(255,255,255,.7)';
+        ctx.beginPath();
+        ctx.ellipse(dx - 2, dy - 5, 11, 3.5, -0.5, 0, TAU);
+        ctx.ellipse(dx - 2, dy + 5, 11, 3.5, 0.5, 0, TAU);
+        ctx.fill();
+        ctx.strokeStyle = '#3F8FB0';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(dx - 12, dy);
+        ctx.lineTo(dx + 10, dy);
+        ctx.stroke();
+        ctx.lineCap = 'butt';
+      }, 260);
+    },
+    ground(ctx, W, VH, scroll) {
+      // вода с кувшинками
+      ctx.fillStyle = vgrad(ctx, G, VH, ['#5DBDB2', '#3F9C97']);
+      ctx.fillRect(0, G, W, VH - G);
+      ctx.fillStyle = 'rgba(255,255,255,.45)';
+      ctx.fillRect(0, G, W, 4);
+      tile(W, scroll, 1, 118, (x, i) => {
+        const lx = x + 20 + hash(i) * 40;
+        const ly = G + 22 + hash(i + 4) * 16;
+        const lr = 24 + hash(i + 6) * 10;
+        ctx.fillStyle = '#6FBF5B';
+        ctx.beginPath();
+        ctx.ellipse(lx, ly, lr, lr * 0.36, 0, 0.35, TAU - 0.1);
+        ctx.lineTo(lx, ly);
+        ctx.fill();
+        ctx.strokeStyle = '#3F8F45';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        if (hash(i + 9) > 0.5) {
+          // розовый лотос
+          ctx.fillStyle = '#FFB3C6';
+          for (let k = -1; k <= 1; k++) {
+            ctx.beginPath();
+            ctx.ellipse(lx + k * 6 - 4, ly - 6, 4, 8, k * 0.5, 0, TAU);
+            ctx.fill();
+          }
+          ctx.fillStyle = '#FFE08A';
+          ctx.beginPath();
+          ctx.arc(lx - 4, ly - 4, 2.4, 0, TAU);
+          ctx.fill();
+        }
+      }, 70);
+      ctx.fillStyle = '#2F8580';
+      ctx.fillRect(0, G, W, 2.5);
+    },
+    column(ctx, x, y, w, h, capAt, seed) {
+      // толстый стебель с листьями, на конце — лотос
+      const bx = x + 14;
+      const bw = w - 28;
+      ctx.fillStyle = hgrad(ctx, bx, bx + bw, ['#5FA653', '#A8DC8C', '#86C672', '#5C9F50']);
+      ctx.fillRect(bx, y, bw, h);
+      colOutline(ctx, bx, y, bw, h, '#2F7A3C');
+      const dir = capAt === 'top' ? 1 : -1;
+      const first = capAt === 'top' ? y + 66 : y + h - 66;
+      for (let r = 0; r < 14; r++) {
+        const ny = first + dir * r * 92;
+        if (ny < y + 4 || ny > y + h - 4) break;
+        if (ny < -40 || ny > G + 20) continue;
+        // узел стебля и лист в сторону
+        ctx.strokeStyle = '#2F7A3C';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(bx, ny);
+        ctx.lineTo(bx + bw, ny);
+        ctx.stroke();
+        const side = hash(seed * 3.1 + r) > 0.5 ? 1 : -1;
+        ctx.fillStyle = '#7CC563';
+        ctx.beginPath();
+        const lx = side > 0 ? bx + bw : bx;
+        ctx.moveTo(lx, ny);
+        ctx.quadraticCurveTo(lx + side * 18, ny - 20, lx + side * 30, ny - 6);
+        ctx.quadraticCurveTo(lx + side * 16, ny + 4, lx, ny);
+        ctx.fill();
+        ctx.stroke();
+      }
+      // лотос на конце
+      const cy = capAt === 'top' ? y + 4 : y + h - 4;
+      const up = capAt === 'top' ? -1 : 1;
+      ctx.strokeStyle = '#D9799A';
+      ctx.lineWidth = 2;
+      for (const [dx, rot, c] of [[-24, -0.75, '#F9A9C0'], [24, 0.75, '#F9A9C0'], [-12, -0.35, '#FFC4D4'], [12, 0.35, '#FFC4D4'], [0, 0, '#FFE1E9']]) {
+        ctx.save();
+        ctx.translate(x + w / 2 + dx, cy);
+        ctx.rotate(rot * -up);
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        ctx.ellipse(0, up * -2, 11, 21, 0, 0, TAU);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+      ctx.fillStyle = '#6FBF5B';
+      ctx.strokeStyle = '#2F7A3C';
+      rr(ctx, x - 3, capAt === 'top' ? y + 8 : y + h - 20, w + 6, 12, 6);
+      ctx.fill();
+      ctx.stroke();
+    },
+  },
+
+  /* ---------- 8. Плюшевый совет ---------- */
+  plush: {
+    name: 'Плюшевый совет',
+    ambient: 'dust',
+    hud: '#6B3A2A',
+    sky(ctx, W, VH) {
+      ctx.fillStyle = vgrad(ctx, 0, G, ['#FFF6EA', '#FFEBD8', '#FBDCC8']);
+      ctx.fillRect(0, -90, W, VH + 90);
+      // тёплый свет торшера
+      const g = ctx.createRadialGradient(W * 0.3, 60, 20, W * 0.3, 60, 420);
+      g.addColorStop(0, 'rgba(255,238,190,.75)');
+      g.addColorStop(1, 'rgba(255,238,190,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, -90, W, 560);
+    },
+    far(ctx, W, scroll) {
+      // обои в мелкое сердечко
+      tile(W, scroll, 0.06, 86, (x, i) => {
+        for (let r = 0; r < 6; r++) cloudHeart(ctx, x + (r % 2 ? 43 : 0) + 20, 70 + r * 78, 5, 'rgba(240,170,170,.22)');
+      }, 60);
+      // полка с коробками коллекции (без лиц: это просто коробки)
+      tile(W, scroll, 0.14, 380, (x, i) => {
+        const sy = 250 + (((i % 2) + 2) % 2) * 60;
+        ctx.fillStyle = 'rgba(255,255,255,.85)';
+        rr(ctx, x + 40, sy, 250, 10, 4);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(214,180,160,.5)';
+        ctx.fillRect(x + 40, sy + 10, 250, 4);
+        for (let b = 0; b < 3; b++) {
+          const bx = x + 62 + b * 74;
+          const bh = 62 + hash(i * 5 + b) * 26;
+          ctx.fillStyle = ['rgba(246,184,200,.8)', 'rgba(244,201,123,.8)', 'rgba(191,224,213,.85)', 'rgba(201,182,232,.8)'][Math.floor(hash(i * 3 + b + 1) * 4)];
+          rr(ctx, bx, sy - bh, 54, bh, 5);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,.7)';
+          rr(ctx, bx + 9, sy - bh + 10, 36, bh - 30, 4);
+          ctx.fill();
+        }
+      }, 200);
+      // плинтус
+      ctx.fillStyle = 'rgba(255,255,255,.6)';
+      ctx.fillRect(0, G - 22, W, 22);
+      // совет в сборе: зайка, мишка и панда — большие и важные
+      tile(W, scroll, 0.4, 330, (x, i) => council(ctx, x + 170, ((i % 3) + 3) % 3), 170);
+    },
+    ground(ctx, W, VH, scroll) {
+      // белый диван, простроченный ромбами
+      ctx.fillStyle = '#FFF9F3';
+      ctx.fillRect(0, G, W, VH - G);
+      ctx.fillStyle = '#F6C3CF';
+      ctx.fillRect(0, G, W, 8);
+      ctx.strokeStyle = 'rgba(214,180,160,.55)';
+      ctx.lineWidth = 2;
+      tile(W, scroll, 1, 72, (x) => {
+        ctx.beginPath();
+        ctx.moveTo(x, G + 8);
+        ctx.lineTo(x + 36, G + 40);
+        ctx.lineTo(x, G + 72);
+        ctx.moveTo(x + 72, G + 8);
+        ctx.lineTo(x + 36, G + 40);
+        ctx.lineTo(x + 72, G + 72);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(232,160,180,.8)';
+        ctx.beginPath();
+        ctx.arc(x + 36, G + 40, 3.2, 0, TAU);
+        ctx.fill();
+      }, 40);
+      ctx.fillStyle = '#E79DB0';
+      ctx.fillRect(0, G, W, 2.5);
+    },
+    column(ctx, x, y, w, h, capAt, seed) {
+      // стопка подарочных коробок, сверху — крышка с бантом
+      const bx = x + 7;
+      const bw = w - 14;
+      const colors = [['#F6B8C8', '#E48AA4'], ['#F4D08A', '#DDA94E'], ['#BFE0D5', '#8CC0AE'], ['#CDBBEA', '#A48AD0']];
+      const BOX = 68;
+      const dir = capAt === 'top' ? 1 : -1;
+      const start = capAt === 'top' ? y + 22 : y + h - 22;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x - 8, y, w + 16, h);
+      ctx.clip();
+      for (let r = 0; r < 16; r++) {
+        const by = dir > 0 ? start + r * BOX : start - (r + 1) * BOX;
+        if (dir > 0 ? by > y + h : by + BOX < y) break;
+        if (by > G + 30 || by + BOX < -60) continue;
+        const [fill, edge] = colors[Math.floor(hash(seed * 5.3 + r * 2.1) * 4)];
+        const inset = hash(seed + r * 1.7) * 5;
+        ctx.fillStyle = fill;
+        rr(ctx, bx + inset, by + 1, bw - inset * 2, BOX - 2, 6);
+        ctx.fill();
+        ctx.strokeStyle = edge;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        // лента
+        ctx.fillStyle = 'rgba(255,255,255,.75)';
+        ctx.fillRect(x + w / 2 - 6, by + 2, 12, BOX - 4);
+        ctx.fillRect(bx + inset + 2, by + BOX / 2 - 5, bw - inset * 2 - 4, 10);
+      }
+      ctx.restore();
+      // крышка с бантом
+      const cy = capAt === 'top' ? y : y + h - 22;
+      ctx.fillStyle = '#FFF7EE';
+      rr(ctx, x - 5, cy, w + 10, 22, 7);
+      ctx.fill();
+      ctx.strokeStyle = '#E79DB0';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      const by = capAt === 'top' ? cy - 2 : cy + 24;
+      const up = capAt === 'top' ? -1 : 1;
+      ctx.fillStyle = '#F27C99';
+      ctx.strokeStyle = '#B9506E';
+      ctx.lineWidth = 2;
+      for (const sx of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(x + w / 2, by);
+        ctx.quadraticCurveTo(x + w / 2 + sx * 26, by + up * 24, x + w / 2 + sx * 20, by + up * 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(x + w / 2, by + up * 3, 5.5, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+    },
+  },
+
+  /* ---------- 9. Поцелуй или кусь ---------- */
+  gothic: {
+    name: 'Поцелуй или кусь',
+    ambient: 'embers',
+    hud: '#FFE3EF',
+    dark: true,
+    sky(ctx, W, VH, t) {
+      ctx.fillStyle = vgrad(ctx, 0, G, ['#160A22', '#30103F', '#6E1B5E', '#B8337A', '#E0679A']);
+      ctx.fillRect(0, -90, W, VH + 90);
+      for (let i = 0; i < 46; i++) {
+        const tw = 0.4 + 0.6 * Math.sin(t * (0.7 + hash(i) * 2) + i);
+        ctx.fillStyle = `rgba(255,196,224,${0.2 + tw * 0.55})`;
+        const s = 1 + hash(i + 40) * 1.7;
+        ctx.fillRect(hash(i + 1) * W, hash(i + 20) * 380, s, s);
+      }
+      // розовая луна
+      const mx = W * 0.7;
+      const g = ctx.createRadialGradient(mx, 128, 30, mx, 128, 210);
+      g.addColorStop(0, 'rgba(255,150,200,.5)');
+      g.addColorStop(1, 'rgba(255,150,200,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(mx - 210, -90, 420, 430);
+      ctx.fillStyle = '#FFB1D4';
+      ctx.beginPath();
+      ctx.arc(mx, 128, 60, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(226,110,165,.5)';
+      for (const [dx, dy, r] of [[-20, -18, 11], [20, 18, 15], [16, -28, 7]]) {
+        ctx.beginPath();
+        ctx.arc(mx + dx, 128 + dy, r, 0, TAU);
+        ctx.fill();
+      }
+    },
+    far(ctx, W, scroll, t) {
+      // замок с башнями
+      tile(W, scroll, 0.09, 460, (x, i) => {
+        ctx.fillStyle = '#2A0F38';
+        const base = G - 150;
+        ctx.fillRect(x + 60, base, 250, 150);
+        for (const [tx, tw, th] of [[60, 46, 150], [138, 60, 220], [240, 44, 130], [286, 30, 90]]) {
+          const hh = th + hash(i + tx) * 30;
+          ctx.fillRect(x + tx, base - hh, tw, hh);
+          ctx.beginPath();
+          ctx.moveTo(x + tx - 7, base - hh);
+          ctx.lineTo(x + tx + tw / 2, base - hh - tw * 1.25);
+          ctx.lineTo(x + tx + tw + 7, base - hh);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,170,205,.75)';
+          ctx.beginPath();
+          ctx.arc(x + tx + tw / 2, base - hh + 30, 6, Math.PI, TAU);
+          ctx.rect(x + tx + tw / 2 - 6, base - hh + 30, 12, 13);
+          ctx.fill();
+          ctx.fillStyle = '#2A0F38';
+        }
+      }, 320);
+      // ограда и фонари
+      ctx.fillStyle = '#1C0A26';
+      tile(W, scroll, 0.3, 26, (x) => {
+        ctx.fillRect(x + 10, G - 62, 4, 62);
+        ctx.beginPath();
+        ctx.moveTo(x + 6, G - 62);
+        ctx.lineTo(x + 12, G - 76);
+        ctx.lineTo(x + 18, G - 62);
+        ctx.fill();
+      }, 20);
+      ctx.fillRect(0, G - 46, W, 4);
+      tile(W, scroll, 0.3, 312, (x, i) => {
+        const lx = x + 140;
+        ctx.fillStyle = '#1C0A26';
+        ctx.fillRect(lx - 3, G - 150, 6, 150);
+        const fl = 0.75 + 0.25 * Math.sin(t * 5 + i);
+        ctx.fillStyle = `rgba(255,150,200,${0.22 * fl})`;
+        ctx.beginPath();
+        ctx.arc(lx, G - 164, 40, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = '#1C0A26';
+        rr(ctx, lx - 11, G - 182, 22, 34, 4);
+        ctx.fill();
+        ctx.fillStyle = `rgba(255,190,220,${0.75 + 0.25 * fl})`;
+        rr(ctx, lx - 6, G - 176, 12, 22, 3);
+        ctx.fill();
+      }, 80);
+    },
+    ground(ctx, W, VH, scroll) {
+      ctx.fillStyle = '#1D0B29';
+      ctx.fillRect(0, G, W, VH - G);
+      ctx.fillStyle = '#5B1F60';
+      ctx.fillRect(0, G, W, 6);
+      // розовые тыквы
+      tile(W, scroll, 1, 132, (x, i) => {
+        const px = x + 30 + hash(i) * 50;
+        const py = G + 30 + hash(i + 3) * 10;
+        const s = 0.8 + hash(i + 6) * 0.5;
+        ctx.fillStyle = '#EE6FA4';
+        ctx.beginPath();
+        ctx.ellipse(px - 9 * s, py, 11 * s, 12 * s, 0, 0, TAU);
+        ctx.ellipse(px + 9 * s, py, 11 * s, 12 * s, 0, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = '#FF93BE';
+        ctx.beginPath();
+        ctx.ellipse(px, py, 10 * s, 13 * s, 0, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = '#7BC47A';
+        ctx.fillRect(px - 2, py - 18 * s, 4, 7 * s);
+      }, 70);
+      ctx.fillStyle = '#12061A';
+      ctx.fillRect(0, G, W, 2.5);
+    },
+    column(ctx, x, y, w, h, capAt, seed, t = 0) {
+      // готическая башенка: тёмный камень, стрельчатые окна, кружево с чёрным бантом
+      ctx.fillStyle = hgrad(ctx, x, x + w, ['#3A1648', '#5E2670', '#48195A', '#33123F']);
+      ctx.fillRect(x, y, w, h);
+      const dir = capAt === 'top' ? 1 : -1;
+      const first = capAt === 'top' ? y + 52 : y + h - 52 - 40;
+      for (let r = 0; r < 20; r++) {
+        const wy = first + dir * r * 86;
+        if (wy < y - 10 || wy > y + h - 30) break;
+        if (wy < -60 || wy > G + 10) continue;
+        const lit = hash(seed * 6.1 + r * 2.3) > 0.35;
+        ctx.fillStyle = lit ? '#FF9CC8' : '#240C30';
+        ctx.beginPath();
+        ctx.moveTo(x + w / 2 - 11, wy + 40);
+        ctx.lineTo(x + w / 2 - 11, wy + 14);
+        ctx.quadraticCurveTo(x + w / 2 - 11, wy, x + w / 2, wy - 4);
+        ctx.quadraticCurveTo(x + w / 2 + 11, wy, x + w / 2 + 11, wy + 14);
+        ctx.lineTo(x + w / 2 + 11, wy + 40);
+        ctx.fill();
+        if (lit) {
+          ctx.strokeStyle = '#48195A';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(x + w / 2, wy - 2);
+          ctx.lineTo(x + w / 2, wy + 40);
+          ctx.moveTo(x + w / 2 - 11, wy + 22);
+          ctx.lineTo(x + w / 2 + 11, wy + 22);
+          ctx.stroke();
+        }
+      }
+      colOutline(ctx, x, y, w, h, '#FFA6CF', 3);
+      // кружевная кайма
+      const cy = capAt === 'top' ? y : y + h - 20;
+      ctx.fillStyle = '#FF8FBE';
+      rr(ctx, x - 5, cy, w + 10, 20, 5);
+      ctx.fill();
+      ctx.strokeStyle = '#FFE3EF';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.fillStyle = '#FFE3EF';
+      const ly = capAt === 'top' ? cy + 20 : cy;
+      for (let k = 0; k < 6; k++) {
+        ctx.beginPath();
+        ctx.arc(x + 2 + k * ((w - 4) / 5), ly, 6, capAt === 'top' ? 0 : Math.PI, capAt === 'top' ? Math.PI : TAU);
+        ctx.fill();
+      }
+      // чёрный бант
+      ctx.fillStyle = '#1B0A24';
+      for (const sx of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(x + w / 2, cy + 10);
+        ctx.lineTo(x + w / 2 + sx * 17, cy + 1);
+        ctx.lineTo(x + w / 2 + sx * 17, cy + 19);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.fillStyle = '#FF5C9A';
+      ctx.beginPath();
+      ctx.arc(x + w / 2, cy + 10, 4.5, 0, TAU);
+      ctx.fill();
+      if (capAt === 'top') {
+        // свеча на нижней башенке
+        const fl = Math.sin(t * 9 + seed * 3) * 1.6;
+        ctx.fillStyle = '#FFF1F6';
+        rr(ctx, x + w - 22, cy - 22, 9, 22, 3);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,200,120,.3)';
+        ctx.beginPath();
+        ctx.arc(x + w - 17.5, cy - 30, 13, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = '#FFD27A';
+        ctx.beginPath();
+        ctx.ellipse(x + w - 17.5 + fl * 0.4, cy - 30, 3.6, 7.5 + fl * 0.5, 0, 0, TAU);
+        ctx.fill();
+      }
+    },
+  },
+
+  /* ---------- 10. Дорога к Насте ---------- */
   love: {
     name: 'Дорога к Насте',
     ambient: 'hearts',

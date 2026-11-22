@@ -1,7 +1,7 @@
 /* Flappy Kitty · звук. Всё синтезируется через Web Audio —
    ни одного аудиофайла, поэтому игра грузится мгновенно. */
 
-const ROOTS = { living: 0, kitchen: 2, party: 5, night: -3, winter: 7, love: 0, letter: -2 };
+const ROOTS = { living: 0, kitchen: 2, party: 5, night: -3, winter: 7, rain: -5, pond: 4, plush: 9, gothic: -1, love: 0, letter: -2 };
 // аккорды в полутонах от тоники: I – V – vi – IV (а ночью vi – IV – I – V)
 const PROG = {
   major: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]],
@@ -241,6 +241,11 @@ export class Sound {
         this.noise(0.12, { vol: 0.35, freq: 1800, q: 0.5 });
         this.tone(900, 0.08, { type: 'square', vol: 0.05, to: 300 });
         break;
+      case 'croak':
+        // «ква»: два коротких хриплых звука — лягушонок сейчас прыгнет
+        this.tone(210, 0.09, { type: 'sawtooth', vol: 0.07, to: 150 });
+        this.tone(250, 0.13, { type: 'sawtooth', vol: 0.08, to: 140, delay: 0.11 });
+        break;
       case 'shield':
         this.noise(0.18, { vol: 0.25, freq: 3200, q: 0.7 });
         this.tone(1200, 0.2, { type: 'sine', vol: 0.1, to: 500 });
@@ -352,7 +357,7 @@ export class Sound {
   schedule() {
     if (!this.ctx || !this.musicOn) return;
     const letter = this.theme === 'letter';
-    const minor = this.theme === 'night';
+    const minor = this.theme === 'night' || this.theme === 'gothic' || this.theme === 'rain';
     const bpm = letter ? 66 : this.theme === 'love' ? 92 : this.theme === 'party' ? 112 : 100;
     const eighth = 60 / bpm / 2;
     const root = 60 + (ROOTS[this.theme] || 0);
