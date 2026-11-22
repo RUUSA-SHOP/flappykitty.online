@@ -413,7 +413,7 @@ h3 {
 
 .levels-strip {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr)); /* десять уровней — два ряда по пять */
   gap: 16px;
   margin: 0;
   padding: 0;
@@ -465,15 +465,11 @@ h3 {
   line-height: 1.4;
   color: var(--plum-soft);
 }
-@media (max-width: 1080px) {
-  .levels-strip {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-@media (max-width: 640px) {
+/* на планшете и телефоне — лента, которую листают вбок */
+@media (max-width: 900px) {
   .levels-strip {
     grid-auto-flow: column;
-    grid-auto-columns: 68%;
+    grid-auto-columns: 30%;
     grid-template-columns: none;
     margin-inline: -20px;
     padding: 4px 20px 14px;
@@ -484,6 +480,11 @@ h3 {
   }
   .levels-strip > li {
     scroll-snap-align: start;
+  }
+}
+@media (max-width: 640px) {
+  .levels-strip {
+    grid-auto-columns: 68%;
   }
 }
 

@@ -1,7 +1,22 @@
 /* Flappy Kitty · звук. Всё синтезируется через Web Audio —
    ни одного аудиофайла, поэтому игра грузится мгновенно. */
 
-const ROOTS = { living: 0, kitchen: 2, party: 5, night: -3, winter: 7, love: 0, letter: -2 };
+const ROOTS = { living: 0, kitchen: 2, party: 5, night: -3, winter: 7, rain: -5, rainbow: -5, pond: 4, plush: 9, gothic: -1, love: 0, letter: -2 };
+// Характер музыки по мирам. Чего нет в таблице — играет как «шкатулка» по умолчанию (100 ударов, мажор).
+//   bpm — темп; minor — минорный круг аккордов; high — на сколько полутонов поднят перебор;
+//   arp — рисунок перебора (номера нот аккорда); wave — тембр перебора; len — длина ноты перебора.
+// «rainbow» — тот же мир «Под дождём», но после дождя: main.js включает его по событию «clear».
+const STYLE = {
+  party: { bpm: 112 },
+  night: { minor: true },
+  winter: { high: 12 },
+  love: { bpm: 92 },
+  rain: { bpm: 88, minor: true, arp: [0, 2, 1, 2, 0, 2, 1, 2], len: 0.3 },
+  rainbow: { bpm: 96, high: 12, len: 0.6 },
+  pond: { bpm: 106, arp: [0, 2, 0, 1, 2, 1, 0, 2], len: 0.22, wave: 'triangle' },
+  plush: { bpm: 84, high: 12, arp: [0, 1, 2, 1, 2, 1, 0, 1], len: 0.9 },
+  gothic: { bpm: 108, minor: true, arp: [0, 1, 2, 0, 2, 1, 2, 1], len: 0.28, wave: 'square' },
+};
 // аккорды в полутонах от тоники: I – V – vi – IV (а ночью vi – IV – I – V)
 const PROG = {
   major: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]],
@@ -241,6 +256,32 @@ export class Sound {
         this.noise(0.12, { vol: 0.35, freq: 1800, q: 0.5 });
         this.tone(900, 0.08, { type: 'square', vol: 0.05, to: 300 });
         break;
+      case 'yarn':
+        // клубок: мягкий «пуф» и две тёплые ноты — подарок, а не хлопок
+        this.noise(0.14, { vol: 0.12, freq: 900, q: 0.5, type: 'lowpass' });
+        this.tone(midi(79), 0.16, { type: 'sine', vol: 0.12 });
+        this.tone(midi(86), 0.24, { type: 'sine', vol: 0.1, delay: 0.07 });
+        break;
+      case 'squeak':
+        // летучая мышь на подлёте: два тонких писка
+        this.tone(2500, 0.07, { type: 'triangle', vol: 0.07, to: 3300 });
+        this.tone(2700, 0.09, { type: 'triangle', vol: 0.07, to: 3600, delay: 0.13 });
+        break;
+      case 'plop':
+        // лягушонок вернулся в воду
+        this.tone(520, 0.12, { type: 'sine', vol: 0.11, to: 170 });
+        this.noise(0.1, { vol: 0.08, freq: 1400, q: 0.6, delay: 0.03 });
+        break;
+      case 'clear':
+        // дождь кончился: светлый перелив вверх
+        [67, 72, 76, 79, 84, 88].forEach((n, i) => this.tone(midi(n), 0.5, { type: 'sine', vol: 0.11, delay: i * 0.09 }));
+        this.tone(midi(91), 0.9, { type: 'triangle', vol: 0.06, delay: 0.56 });
+        break;
+      case 'croak':
+        // «ква»: два коротких хриплых звука — лягушонок сейчас прыгнет
+        this.tone(210, 0.09, { type: 'sawtooth', vol: 0.07, to: 150 });
+        this.tone(250, 0.13, { type: 'sawtooth', vol: 0.08, to: 140, delay: 0.11 });
+        break;
       case 'shield':
         this.noise(0.18, { vol: 0.25, freq: 3200, q: 0.7 });
         this.tone(1200, 0.2, { type: 'sine', vol: 0.1, to: 500 });
@@ -352,8 +393,9 @@ export class Sound {
   schedule() {
     if (!this.ctx || !this.musicOn) return;
     const letter = this.theme === 'letter';
-    const minor = this.theme === 'night';
-    const bpm = letter ? 66 : this.theme === 'love' ? 92 : this.theme === 'party' ? 112 : 100;
+    const style = STYLE[this.theme] || {};
+    const minor = !!style.minor;
+    const bpm = letter ? 66 : style.bpm || 100;
     const eighth = 60 / bpm / 2;
     const root = 60 + (ROOTS[this.theme] || 0);
     const prog = minor ? PROG.minor : PROG.major;
@@ -382,9 +424,33 @@ export class Sound {
       }
 
       // слой 1 — перебор «музыкальной шкатулки», звучит всегда
-      const arp = [0, 1, 2, 1, 0, 2, 1, 2][pos];
-      const high = this.theme === 'winter' ? 12 : 0;
-      this.tone(midi(root + 12 + high + chord[arp]), 0.5, { type: 'sine', vol: this.danger ? 0.06 : 0.085, delay, out, attack: 0.004 });
+      const arp = (style.arp || [0, 1, 2, 1, 0, 2, 1, 2])[pos];
+      const high = style.high || 0;
+      const wave = style.wave || 'sine';
+      // «квадратный» тембр (клавесин готического мира) громче на слух — играем его тише
+      const arpVol = (this.danger ? 0.06 : 0.085) * (wave === 'square' ? 0.42 : 1);
+      this.tone(midi(root + 12 + high + chord[arp]), style.len || 0.5, { type: wave, vol: arpVol, delay, out, attack: 0.004 });
+      // краски миров
+      if (this.theme === 'rain') {
+        // шум дождя и редкие «капли» высоко
+        this.noise(eighth * 1.1, { vol: 0.02, freq: 5200, q: 0.4, delay, out });
+        if (pos === 3 || (pos === 6 && bar % 2 === 0)) this.tone(midi(root + 36 + chord[(bar + pos) % 3]), 0.09, { type: 'sine', vol: 0.035, delay, out, to: midi(root + 31 + chord[(bar + pos) % 3]) });
+      } else if (this.theme === 'pond') {
+        // сверчок: две коротких трели в конце каждого второго такта
+        if (bar % 2 === 1 && pos === 7) for (let k = 0; k < 3; k++) this.tone(4300, 0.035, { type: 'sine', vol: 0.016, delay: delay + k * 0.06, out });
+        // и булькающий бас на слабую долю
+        if (pos === 4) this.tone(midi(root - 12 + chord[2]), 0.18, { type: 'sine', vol: 0.07, delay, out, to: midi(root - 7 + chord[2]) });
+      } else if (this.theme === 'plush') {
+        // колыбельная: тёплая терция под мелодией
+        if (pos === 0 || pos === 4) this.tone(midi(root + chord[1]), eighth * 3.5, { type: 'sine', vol: 0.035, delay, out, attack: 0.08 });
+      } else if (this.theme === 'gothic') {
+        // орган: длинная квинта внизу и редкий колокол
+        if (pos === 0) this.tone(midi(root - 5 + chord[0]), eighth * 8, { type: 'sawtooth', vol: 0.018, delay, out, attack: 0.2 });
+        if (pos === 0 && bar % 4 === 3) this.tone(midi(root + 24 + chord[0]), 1.6, { type: 'triangle', vol: 0.04, delay, out, attack: 0.004 });
+      } else if (this.theme === 'rainbow') {
+        // после дождя: звонкая октава на сильную долю
+        if (pos === 0 || pos === 4) this.tone(midi(root + 36 + chord[pos === 0 ? 0 : 2]), 0.7, { type: 'sine', vol: 0.03, delay, out });
+      }
       // слой 2 — бас; на последней жизни он стучит чаще, как сердце
       if (pos === 0) this.tone(midi(root - 12 + chord[0]), eighth * 7, { type: 'triangle', vol: 0.09, delay, out, attack: 0.02 });
       if (this.danger && (pos === 3 || pos === 4)) this.tone(midi(root - 12 + chord[0]), 0.16, { type: 'sine', vol: 0.1, delay, out, attack: 0.01 });

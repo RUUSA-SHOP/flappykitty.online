@@ -1,5 +1,9 @@
 /* Уровни сюжетного режима и облики Мии.
-   Чтобы добавить уровень — допиши объект в LEVELS и тему в themes.js. */
+   Чтобы добавить уровень — допиши объект в LEVELS и тему в themes.js.
+   Последний уровень в списке — финал: после него открывается письмо (см. config.js).
+   Опасности (hazards): drop — капли из кранов, balloon — шарики с сердечками, cucumber — огурцы,
+   wind — ветер, rain — капли с туч, frog — прыгающие лягушата, yarn — клубки с сердечками,
+   bat — летучие мыши. */
 
 export const WORLD = {
   H: 720, // высота игрового мира в условных пикселях
@@ -18,6 +22,7 @@ export const LEVELS = [
     name: 'Гостиная',
     tagline: 'Первый полёт',
     story: 'Мия обнаружила, что умеет летать. Когтеточки в шоке.',
+    tip: 'Тап, клик или пробел — взмах крыльев. У Мии три жизни на уровень.',
     gates: 10,
     speed: 165,
     gap: 218,
@@ -32,6 +37,7 @@ export const LEVELS = [
     name: 'Кухня',
     tagline: 'Операция «Кран»',
     story: 'Вода из-под крана — лучшая вода. Но капли лучше облетать.',
+    tip: 'Из кранов на потолке падают капли. Мия не любит мокнуть.',
     gates: 13,
     speed: 175,
     gap: 208,
@@ -46,6 +52,7 @@ export const LEVELS = [
     name: 'День рождения',
     tagline: 'Торт, свечи, шарики',
     story: 'Свечи качаются, шарики лопаются — и из них сыплются сердечки.',
+    tip: 'Свечи двигаются. Лопай шарики — в каждом два сердечка.',
     gates: 15,
     speed: 185,
     gap: 204,
@@ -60,6 +67,7 @@ export const LEVELS = [
     name: 'Ночной город',
     tagline: 'Ночной дозор',
     story: 'Город спит, Мия дежурит. Осторожно: в небе замечены огурцы.',
+    tip: 'Красный «!» справа — оттуда летит огурец. Уходи с его линии.',
     gates: 17,
     speed: 198,
     gap: 198,
@@ -74,6 +82,7 @@ export const LEVELS = [
     name: 'Зимняя сказка',
     tagline: 'Против ветра',
     story: 'Льдинки, снег и порывы ветра. Следи за стрелками.',
+    tip: 'Стрелки показывают, куда подует ветер. Дует вверх — маши реже, вниз — чаще.',
     gates: 19,
     speed: 205,
     gap: 200,
@@ -84,10 +93,72 @@ export const LEVELS = [
   },
   {
     id: 6,
+    theme: 'rain',
+    name: 'Под дождём',
+    tagline: 'Дождевик пригодился',
+    story: 'Дождевик надет не зря: дождь всё-таки пошёл. Капли облетаем, радугу ловим.',
+    tip: 'С туч падают капли. Потом дождь кончится — и на пути станет вдвое больше сердечек.',
+    gates: 18,
+    speed: 200,
+    gap: 204,
+    spacing: 305,
+    move: 0,
+    hazards: ['rain'],
+    calmFrom: 0.6, // после 60% пути дождь кончается: опасностей нет, сердечек на пути вдвое больше
+    powerups: ['shield', 'magnet', 'catnip'],
+  },
+  {
+    id: 7,
+    theme: 'pond',
+    name: 'Лягушачий пруд',
+    tagline: 'Ква',
+    story: 'Лето, кувшинки и лягушата. Они добрые, но прыгают без предупреждения. Почти.',
+    tip: 'Круги на воде — сейчас прыгнет лягушонок. Держись повыше.',
+    gates: 19,
+    speed: 204,
+    gap: 202,
+    spacing: 305,
+    move: 30,
+    hazards: ['frog'],
+    powerups: ['shield', 'magnet', 'catnip'],
+  },
+  {
+    id: 8,
+    theme: 'plush',
+    name: 'Плюшевый совет',
+    tagline: 'Заседание открыто',
+    story: 'Зайка, Мишка и Панда собрались на совет. Мия — председатель и совершает облёт.',
+    tip: 'Здесь спокойно. Лови клубки — в каждом два сердечка.',
+    gates: 16,
+    speed: 190,
+    gap: 210,
+    spacing: 305,
+    move: 20,
+    hazards: ['yarn'],
+    powerups: ['shield', 'magnet', 'catnip'],
+  },
+  {
+    id: 9,
+    theme: 'gothic',
+    name: 'Поцелуй или кусь',
+    tagline: 'Розовая луна',
+    story: 'Свечи, замок и летучие мыши. Мия надела шляпу и сделала серьёзное лицо.',
+    tip: 'Летучие мыши летят волной. Красный «!» покажет, откуда ждать.',
+    gates: 21,
+    speed: 208,
+    gap: 198,
+    spacing: 300,
+    move: 36,
+    hazards: ['bat'],
+    powerups: ['shield', 'magnet', 'catnip'],
+  },
+  {
+    id: 10,
     theme: 'love',
     name: 'Дорога к Насте',
     tagline: 'Финал',
     story: 'Последний перелёт. Там, в конце, ждёт самое главное сердце.',
+    tip: 'Здесь всё сразу. Долети до большого сердца.',
     gates: 24,
     speed: 212,
     gap: 196,
@@ -98,17 +169,27 @@ export const LEVELS = [
   },
 ];
 
+/** Миры бесконечного режима — в том же порядке, что и сюжет. */
+export const ENDLESS_THEMES = ['living', 'kitchen', 'party', 'night', 'winter', 'rain', 'pond', 'plush', 'gothic', 'love'];
+const ENDLESS_STEP = 6; // мир меняется каждые шесть ворот: за средний забег видно больше половины миров
+// У каждого мира в бесконечном режиме — свой обитатель из сюжета (в гостиной спокойно: только шарики).
+const ENDLESS_HAZARD = { living: 'balloon', kitchen: 'drop', party: 'balloon', night: 'cucumber', winter: 'wind', rain: 'rain', pond: 'frog', plush: 'yarn', gothic: 'bat', love: 'balloon' };
+
 /** Параметры бесконечного режима: сложность растёт с каждыми воротами. */
 export function endlessParams(passed) {
   const k = Math.min(1, passed / 45);
-  const themes = ['living', 'kitchen', 'party', 'night', 'winter', 'love'];
+  const theme = ENDLESS_THEMES[Math.floor(passed / ENDLESS_STEP) % ENDLESS_THEMES.length];
+  // первые два мира — разминка: сначала пусто, потом только шарики с сердечками; дальше у каждого мира свой обитатель
+  const hazards = passed < ENDLESS_STEP ? [] : passed < ENDLESS_STEP * 2 ? ['balloon'] : [ENDLESS_HAZARD[theme]];
+  // со второго круга по мирам к обитателю добавляются огурцы (кроме мира летучих мышей — там хватает своих)
+  if (passed >= ENDLESS_STEP * ENDLESS_THEMES.length && !hazards.includes('cucumber') && !hazards.includes('bat')) hazards.push('cucumber');
   return {
-    theme: themes[Math.floor(passed / 10) % themes.length],
+    theme,
     speed: 172 + 70 * k,
     gap: 205 - 50 * k,
     spacing: 305 - 25 * k,
     move: passed > 12 ? Math.min(50, (passed - 12) * 2.5) : 0,
-    hazards: passed > 30 ? ['cucumber', 'balloon'] : passed > 8 ? ['balloon'] : [],
+    hazards,
     powerups: ['shield', 'magnet', 'catnip'],
   };
 }

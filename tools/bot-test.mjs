@@ -54,7 +54,7 @@ for (const viewW of [380, 960]) {
       `жизней теряет ${(lost / RUNS).toFixed(2)}  звёзд ${(stars / Math.max(1, wins)).toFixed(2)}  ` +
       `длится ${(time / Math.max(1, wins)).toFixed(0)}с  сердечек ${Math.round((hearts / total) * 100)}%`
     );
-    if (pct < 60) failed = true;
+    if (pct < 85) failed = true;
   }
 }
 

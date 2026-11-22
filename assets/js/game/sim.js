@@ -10,6 +10,10 @@ const FINISH_GAP = 1.2; // финиш стоит в 1.2 шага за после
 const NEAR_MISS = 9; // просвет между Мией и краем ворот, при котором пролёт считается «впритирку»
 const STREAK_STEP = 10; // каждые столько сердечек подряд — премия
 const STREAK_BONUS = 2;
+const FROG_Y = GROUND - 14; // на этой высоте лягушонок сидит на воде
+const FROG_GRAVITY = 1500;
+const FROG_WARN = 0.6; // столько секунд по воде идут круги, прежде чем лягушонок прыгнет
+const BAT_WAVE = 38; // размах волны, по которой летит летучая мышь
 
 function mulberry32(a) {
   return function () {
@@ -56,6 +60,9 @@ export class Sim {
     this.warnings = [];
     this.wind = { state: 'idle', timer: 4, dir: 1 };
     this.cucumberTimer = 3.5;
+    this.batTimer = 3;
+    this.clear = 0; // 0…1 — насколько «прояснилось» после дождя (только для уровней с calmFrom)
+    this.cleared = false;
 
     this.spawned = 0;
     this.passed = 0;
@@ -86,6 +93,12 @@ export class Sim {
 
   get totalGates() {
     return this.mode === 'story' ? this.level.gates : Infinity;
+  }
+
+  /** Номер ворот, с которых уровень становится спокойным (дождь кончился). Infinity — такого места нет. */
+  get calmGate() {
+    const l = this.level;
+    return l && l.calmFrom != null ? Math.round(l.gates * l.calmFrom) : Infinity;
   }
 
   /** Насколько пройден сюжетный уровень, 0..1. В бесконечном режиме всегда 0. */
@@ -161,12 +174,13 @@ export class Sim {
     // сердечко в просвете (едет вместе с воротами)
     this.addItem('heart', x + GATE_W / 2, baseY, { gate });
 
-    // дорожка между воротами
+    // дорожка между воротами; в спокойной части уровня (после дождя) сердечек на ней вдвое больше
     const ax = this.prevAnchor.x;
     const span = x - ax;
     const pathY = (f) => lerp(prevY, baseY, smooth(f));
-    this.addItem('heart', ax + span / 3, pathY(1 / 3));
-    this.addItem('heart', ax + span * (2 / 3), pathY(2 / 3));
+    const calm = idx >= this.calmGate;
+    const trail = calm && idx > 0 ? [1 / 5, 2 / 5, 3 / 5, 4 / 5] : [1 / 3, 2 / 3];
+    for (const f of trail) this.addItem('heart', ax + span * f, pathY(f));
 
     let midBusy = false;
     const midX = ax + span / 2;
@@ -178,15 +192,33 @@ export class Sim {
       midBusy = true;
     }
 
-    const hz = idx > 0 ? p.hazards : [];
+    const hz = idx > 0 && !calm ? p.hazards : [];
     if (hz.includes('drop') && r() < 0.6) {
       this.emitters.push({ x: midX, period: 1.7, timer: r() * 1.7 });
+      midBusy = true;
+    }
+    // тучка: те же капли, но падают с неба и реже
+    if (hz.includes('rain') && r() < 0.55) {
+      this.emitters.push({ x: midX, period: 2, timer: r() * 2, kind: 'cloud', y: 74 });
       midBusy = true;
     }
     if (hz.includes('balloon') && !midBusy && r() < 0.55) {
       const side = r() < 0.5 ? -1 : 1;
       const by = clamp(pathY(0.5) + side * (78 + r() * 30), 60, GROUND - 70);
       this.hazards.push({ type: 'balloon', x: midX, y: by, y0: by, r: 22, vx: 0, phase: r() * 6.28, hue: Math.floor(r() * 4) });
+      midBusy = true;
+    }
+    // клубок — те же два сердечка, что в шарике, только лежит ближе к пути
+    if (hz.includes('yarn') && !midBusy && r() < 0.6) {
+      const side = r() < 0.5 ? -1 : 1;
+      const by = clamp(pathY(0.5) + side * (58 + r() * 24), 60, GROUND - 70);
+      this.hazards.push({ type: 'yarn', x: midX, y: by, y0: by, r: 20, vx: 0, phase: r() * 6.28, hue: Math.floor(r() * 4) });
+      midBusy = true;
+    }
+    // лягушонок сидит на воде и время от времени прыгает; чем выше летишь, тем безопаснее
+    if (hz.includes('frog') && !midBusy && r() < 0.5) {
+      // jump — скорость толчка (высота прыжка 180–260), at — в какой доле прыжка он окажется, когда Мия пролетит над ним
+      this.hazards.push({ type: 'frog', x: midX, y: FROG_Y, r: 15, vx: 0, vy: 0, state: 'sit', timer: 0, jump: 735 + r() * 150, at: 0.2 + r() * 0.55 });
       midBusy = true;
     }
     // золотая рыбка — в стороне от безопасной траектории
@@ -249,6 +281,15 @@ export class Sim {
       this.emit('theme', { theme: p.theme });
     }
     const hazardsOn = p.hazards;
+
+    // дождь кончился: небо светлеет (на логику не влияет, это для картинки и звука)
+    if (this.passed >= this.calmGate) {
+      if (!this.cleared) {
+        this.cleared = true;
+        this.emit('clear');
+      }
+      this.clear = Math.min(1, this.clear + dt / 2.5);
+    }
 
     this.dist += this.speed * dt;
     this.scroll += this.speed * dt;
@@ -353,7 +394,7 @@ export class Sim {
       e.timer -= dt;
       if (e.timer <= 0) {
         e.timer += e.period;
-        this.hazards.push({ type: 'drop', x: e.x, y: 26, vx: 0, vy: 150, r: 9 });
+        this.hazards.push({ type: 'drop', x: e.x, y: e.kind === 'cloud' ? e.y + 20 : 26, vx: 0, vy: 150, r: 9 });
       }
     }
 
@@ -367,10 +408,22 @@ export class Sim {
         this.emit('warn', { y });
       }
     }
+    // летучие мыши: как огурцы, но летят широкой волной вокруг отмеченной высоты
+    if (hazardsOn.includes('bat')) {
+      this.batTimer -= dt;
+      if (this.batTimer <= 0) {
+        this.batTimer = 3.3 + this.rand() * 2.3;
+        const y = clamp(m.y + (this.rand() * 2 - 1) * 60, 110, GROUND - 110);
+        this.warnings.push({ y, timer: 0.95, kind: 'bat' });
+        this.emit('warn', { y, kind: 'bat' });
+      }
+    }
     for (const w of this.warnings) {
       w.timer -= dt;
       if (w.timer <= 0) {
-        this.hazards.push({ type: 'cucumber', x: this.dist + this.viewW + 40, y: w.y, y0: w.y, vx: -115, r: 15, phase: this.rand() * 6.28 });
+        const x = this.dist + this.viewW + 40;
+        if (w.kind === 'bat') this.hazards.push({ type: 'bat', x, y: w.y, y0: w.y, vx: -100, r: 14, amp: BAT_WAVE, phase: this.rand() * 6.28 });
+        else this.hazards.push({ type: 'cucumber', x, y: w.y, y0: w.y, vx: -115, r: 15, phase: this.rand() * 6.28 });
         w.done = true;
       }
     }
@@ -385,21 +438,53 @@ export class Sim {
           h.dead = true;
           this.emit('splash', { x: h.x, y: GROUND });
         }
-      } else if (h.type === 'balloon') {
+      } else if (h.type === 'balloon' || h.type === 'yarn') {
         h.y = h.y0 + Math.sin(h.phase + this.t * 1.6) * 10;
       } else if (h.type === 'cucumber') {
         h.x += h.vx * dt;
         h.y = h.y0 + Math.sin(h.phase + this.t * 5) * 8;
+      } else if (h.type === 'bat') {
+        h.x += h.vx * dt;
+        h.y = h.y0 + Math.sin(h.phase + this.t * 3.2) * h.amp;
+      } else if (h.type === 'frog') {
+        const sx = h.x - this.dist;
+        if (h.state === 'sit') {
+          // Прыгает один раз — так, чтобы оказаться в воздухе, когда Мия будет над ним.
+          // Круги по воде начинаются, только когда лягушонок уже виден: предупреждение нельзя пропустить.
+          const air = (2 * h.jump) / FROG_GRAVITY;
+          const lead = Math.min(this.speed * (FROG_WARN + h.at * air), this.viewW - this.miaX - 24);
+          if (!h.done && sx - this.miaX <= lead && sx > this.miaX) {
+            h.done = true;
+            h.state = 'warn';
+            h.timer = FROG_WARN;
+            this.emit('croak', { x: h.x, y: GROUND });
+          }
+        } else if (h.state === 'warn') {
+          h.timer -= dt;
+          if (h.timer <= 0) {
+            h.state = 'jump';
+            h.vy = -h.jump;
+          }
+        } else {
+          h.vy += FROG_GRAVITY * dt;
+          h.y += h.vy * dt;
+          if (h.y >= FROG_Y) {
+            h.y = FROG_Y;
+            h.vy = 0;
+            h.state = 'sit';
+            this.emit('splash', { x: h.x, y: GROUND, kind: 'frog' });
+          }
+        }
       }
       if (h.dead || this.status !== 'playing') continue;
       const dx = h.x - wx;
       const dy = h.y - m.y;
       const rr = h.r + RADIUS - 3;
       if (dx * dx + dy * dy < rr * rr) {
-        if (h.type === 'balloon') {
+        if (h.type === 'balloon' || h.type === 'yarn') {
           h.dead = true;
           this.hearts += 2;
-          this.emit('pop', { x: h.x, y: h.y, hue: h.hue });
+          this.emit('pop', { x: h.x, y: h.y, hue: h.hue, kind: h.type });
         } else if (!ghost) {
           h.dead = true;
           this.hit(h.type);
@@ -515,13 +600,12 @@ export class Sim {
     }
   }
 
-  /** Звёзды за уровень: 1 — дошла, 2 — собрала 70% сердечек, 3 — и не потеряла ни одной жизни. */
+  /** Звёзды за уровень — по одной за каждую цель: долетела, собрала 70% сердечек, не потеряла ни одной жизни.
+      Сколько галочек на экране победы, столько и звёзд. */
   stars() {
     if (this.status !== 'won') return 0;
     const ratio = this.heartsTotal ? this.pathHearts / this.heartsTotal : 1;
-    if (ratio >= 0.7 && this.lostLives === 0) return 3;
-    if (ratio >= 0.7) return 2;
-    return 1;
+    return 1 + (ratio >= 0.7 ? 1 : 0) + (this.lostLives === 0 ? 1 : 0);
   }
 }
 
