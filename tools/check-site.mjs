@@ -55,6 +55,7 @@ const attr = (tag, name) => {
 };
 const isExternal = (u) => /^(https?:)?\/\//.test(u);
 const titles = new Map();
+const ogBases = new Set();
 
 for (const page of pages) {
   const src = html[page];
@@ -117,10 +118,17 @@ for (const page of pages) {
   const symbols = new Set([...src.matchAll(/<symbol id="([^"]+)"/g)].map((m) => m[1]));
   for (const m of src.matchAll(/<use href="#([^"]+)"/g)) if (!symbols.has(m[1])) err(page, `значок #${m[1]} не описан на этой странице`);
 
-  // соцсети: картинка предпросмотра
-  const og = src.match(/property="og:image" content="https:\/\/flappykitty\.online\/([^"]+)"/);
-  if (og && !exists(og[1])) err(page, `og:image указывает на несуществующий файл ${og[1]}`);
+  // соцсети: картинка предпросмотра. Адрес сайта может быть любым (см. tools/set-url.mjs), файл должен лежать в проекте,
+  // а og:url и og:image — указывать на один и тот же сайт.
+  const og = src.match(/property="og:image" content="(https:\/\/[^"]*?\/)(assets\/[^"]+)"/);
+  const ogUrl = src.match(/property="og:url" content="([^"]+)"/);
+  if (src.includes('property="og:image"') && !og) err(page, 'og:image должен быть полным адресом вида https://…/assets/…');
+  if (og && !exists(og[2])) err(page, `og:image указывает на несуществующий файл ${og[2]}`);
+  if (og && ogUrl && !ogUrl[1].startsWith(og[1])) err(page, `og:url (${ogUrl[1]}) и og:image (${og[1]}…) указывают на разные сайты — запусти node tools/set-url.mjs`);
+  if (og) ogBases.add(og[1]);
 }
+
+if (ogBases.size > 1) err('страницы', `в превью для мессенджеров указаны разные адреса сайта: ${[...ogBases].join(', ')} — запусти node tools/set-url.mjs`);
 
 /* ---------- JavaScript ---------- */
 

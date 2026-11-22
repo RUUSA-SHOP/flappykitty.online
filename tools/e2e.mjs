@@ -736,6 +736,187 @@ await test('игра помещается на маленьком и на леж
   }
 });
 
+await test('стресс: все события, темы, облики и звуки отрабатывают без ошибок', async (track) => {
+  const page = track(await game({}, '?dev=1'));
+  // звук: настоящий AudioContext, каждое имя звука и каждая тема музыки со всеми настроениями
+  const audio = await page.evaluate(async () => {
+    const { sound } = window.__fk;
+    const errors = [];
+    sound.unlock();
+    if (!sound.ctx) return { errors: ['AudioContext не создан'], state: null };
+    const names = ['flap', 'heart', 'streak', 'streakEnd', 'near', 'purr', 'seal', 'envelope', 'photo', 'fish', 'power', 'powerEnd', 'pop', 'shield', 'hit', 'gate', 'warn', 'wind', 'win', 'lose', 'star', 'click', 'buy', 'nope', 'meow', 'paper', 'нет-такого'];
+    for (const n of names) {
+      try {
+        sound.play(n, { streak: 37 });
+        sound.play(n);
+      } catch (e) {
+        errors.push(`play(${n}): ${e.message}`);
+      }
+    }
+    for (const theme of ['living', 'kitchen', 'party', 'night', 'winter', 'love', 'letter', 'нет-такой']) {
+      for (const mood of [{}, { intensity: 0.5 }, { intensity: 1, boost: true }, { intensity: 2, danger: true }, { intensity: -1 }]) {
+        try {
+          sound.setTheme(theme);
+          sound.setMood(mood);
+          sound.musicOn = true;
+          sound.nextTime = 0;
+          for (let i = 0; i < 6; i++) {
+            sound.nextTime = sound.ctx.currentTime - 1; // заставляем расписать следующую порцию нот
+            sound.schedule();
+          }
+        } catch (e) {
+          errors.push(`музыка ${theme} ${JSON.stringify(mood)}: ${e.message}`);
+        }
+      }
+    }
+    sound.musicOn = false;
+    try {
+      sound.duck(0.3);
+      sound.sleep();
+      sound.wake();
+      sound.setSound(false);
+      sound.play('hit');
+      sound.setSound(true);
+    } catch (e) {
+      errors.push('duck/sleep/wake: ' + e.message);
+    }
+    return { errors, state: sound.ctx.state, freq: sound.musFilter.frequency.value };
+  });
+  equal(audio.errors, [], 'звук');
+
+  // картинка: каждый уровень и бесконечный режим, каждое событие, обычный режим и «уменьшить движение»
+  // По одному забегу за вызов: в браузере без видеокарты отрисовка медленная.
+  const drawRun = (label, id) => page.evaluate(async (label, id) => {
+    const fk = window.__fk;
+    const r = fk.renderer;
+    const errors = [];
+    fk.freeze(true); // рисуем сами, чтобы игровой цикл не мешал
+    const all = ['start', 'flap', 'heart', 'streak', 'streakEnd', 'near', 'fish', 'pop', 'power', 'powerEnd', 'shieldBreak', 'gate', 'warn', 'wind', 'hit', 'splash', 'theme', 'win', 'lose', 'dying', 'нет-такого'];
+    const run = (label, start) => {
+      for (const calm of [false, true]) {
+        r.reduceMotion = calm;
+        try {
+          start();
+          const sim = fk.sim;
+          sim.flap();
+          let seen = new Set();
+          for (let i = 0; i < 120 * 70 && (sim.status === 'playing' || sim.status === 'dying'); i++) {
+            sim.inv = Math.max(sim.inv, 0.5);
+            if (i === 300) { sim.shield = true; sim.magnet = 3; sim.catnip = 3; }
+            if (i % 15 === 0) {
+              const wx = sim.dist + sim.miaX;
+              const g = sim.gates.find((x) => x.x + x.w > wx - 20);
+              if (sim.mia.y + sim.mia.vy * 0.07 > (g ? g.gapY + 22 : 330)) sim.flap();
+            }
+            if (label === 'бесконечный' && sim.passed >= 45) { sim.inv = 0; sim.shield = false; sim.hit('test'); }
+            sim.step(1 / 120);
+            for (const ev of sim.events) { seen.add(ev.type); r.handle(ev, sim); }
+            sim.events.length = 0;
+            if (i % 40 === 0) r.draw(sim, 0.05);
+          }
+          // события, которые в этом забеге не встретились, — с полями и без
+          for (const type of all) {
+            r.handle({ type, x: sim.dist + sim.miaX, y: 200, streak: 99, n: 10, bonus: 2, up: true, lives: 1, kind: 'magnet', hue: 1, theme: sim.theme }, sim);
+            r.handle({ type, kind: 'shield', lives: 0 }, sim);
+          }
+          r.hudHeart = { x: 80, y: 20 };
+          r.handle({ type: 'heart', x: sim.dist + 100, y: 300, streak: 3 }, sim);
+          r.fest = true;
+          r.poke(sim);
+          r.addTrauma(5);
+          // отрицательный и нулевой шаг времени, большой шаг — ничего не должно падать
+          for (const dt of [0.016, 0, -0.3, 0.1, 0.016, 0.5, 0.016]) r.draw(sim, dt);
+          for (let i = 0; i < 40; i++) r.draw(sim, 0.25);
+          r.fest = false;
+          if (r.particles.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) errors.push(`${label}: у частицы нечисловые координаты`);
+          if (!Number.isFinite(r.stretch) || !Number.isFinite(r.trauma)) errors.push(`${label}: stretch/trauma стали нечисловыми`);
+          r.particles.length = 0;
+        } catch (e) {
+          errors.push(`${label}${calm ? ' (уменьшить движение)' : ''}: ${e.message}`);
+        }
+      }
+    };
+    if (id) run(label, () => { fk.startLevel(id); fk.beginPlay(); });
+    else run(label, () => fk.startEndless());
+    r.reduceMotion = false;
+    fk.go('menu');
+    fk.freeze(false);
+    return errors;
+  }, label, id);
+  for (let id = 1; id <= 6; id++) equal(await drawRun(`уровень ${id}`, id), [], `отрисовка, уровень ${id}`);
+  equal(await drawRun('бесконечный', 0), [], 'отрисовка, бесконечный режим');
+
+  // каждый облик загружается и рисуется
+  const skins = await page.evaluate(async () => {
+    const out = [];
+    const { SKINS } = await import('./assets/js/game/levels.js');
+    for (const s of SKINS) {
+      const img = new Image();
+      img.src = s.src;
+      try {
+        await img.decode();
+      } catch (e) {
+        out.push(`${s.id}: картинка не читается`);
+        continue;
+      }
+      window.__fk.renderer.setSkin(s, img);
+      try {
+        window.__fk.renderer.draw(window.__fk.sim, 0.016);
+      } catch (e) {
+        out.push(`${s.id}: ${e.message}`);
+      }
+    }
+    return out;
+  });
+  equal(skins, [], 'облики');
+});
+
+await test('сломанный звук не мешает играть', async (track) => {
+  const page = await browser.newPage();
+  track(page);
+  page.problems = [];
+  page.on('pageerror', (e) => page.problems.push('ошибка скрипта: ' + e.message));
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 });
+  // браузер, в котором звуковое устройство не создаётся вовсе
+  await page.evaluateOnNewDocument(() => {
+    localStorage.clear();
+    const Broken = function () {
+      throw new Error('нет звукового устройства');
+    };
+    window.AudioContext = Broken;
+    window.webkitAudioContext = Broken;
+  });
+  await page.goto(ORIGIN + BASE + 'play.html', { waitUntil: 'networkidle0' });
+  await waitScreen(page, 'menu');
+  await page.click('#btnPlay');
+  await waitScreen(page, 'intro');
+  await page.click('#btnGo');
+  await waitScreen(page, 'play');
+  await page.keyboard.press('Space');
+  await page.waitForFunction(() => window.__fk.sim.status === 'playing', { timeout: 15000 });
+  equal(await page.evaluate(() => window.__fk.sound.ctx), null, 'звука нет');
+  equal((await fastForward(page, 'win')).status, 'won', 'уровень проходится и без звука');
+  await waitScreen(page, 'win');
+
+  // звук есть, но ломается посреди игры: событие всё равно обрабатывается до конца
+  const live = track(await game({ expect: 'intro' }, '?dev=1&level=1'));
+  await live.click('#btnGo');
+  await waitScreen(live, 'play');
+  await live.keyboard.press('Space');
+  await live.waitForFunction(() => window.__fk.sim.status === 'playing', { timeout: 15000 });
+  await live.evaluate(() => {
+    const { sound, sim } = window.__fk;
+    sound.tone = () => {
+      throw new Error('звук сломался');
+    };
+    sound.noise = sound.tone;
+    sim.inv = 0;
+    sim.hit('test');
+  });
+  await live.waitForFunction(() => window.__fk.sim.events.length === 0 && window.__fk.renderer.trauma > 0, { timeout: 15000 });
+  equal(await live.evaluate(() => window.__fk.sim.lives), 2, 'удар засчитан один раз');
+});
+
 await test('конверт с письмом помещается на маленьком и на лежачем экране; «уменьшить движение» открывает его сразу', async (track) => {
   const levels = {};
   for (let i = 1; i <= 6; i++) levels[i] = { done: true, stars: 3, hearts: 20 };

@@ -27,8 +27,21 @@ export class Sound {
     this.boost = false;
   }
 
-  /** Вызывать из обработчика нажатия: браузеры разрешают звук только после жеста. */
+  /** Вызывать из обработчика нажатия: браузеры разрешают звук только после жеста.
+      Звук — украшение: что бы ни случилось со звуковой системой, игра должна остаться играбельной,
+      поэтому ни одна ошибка отсюда наружу не выходит. */
   unlock() {
+    if (this.broken) return;
+    try {
+      this.open();
+    } catch (e) {
+      // без звука, но играть можно; повторно не пробуем, чтобы не плодить звуковые устройства
+      this.broken = true;
+      this.ctx = null;
+    }
+  }
+
+  open() {
     if (!this.ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
@@ -154,6 +167,14 @@ export class Sound {
   }
 
   play(name, opt = {}) {
+    try {
+      this.emitSound(name, opt);
+    } catch (e) {
+      /* звук не должен ломать игру */
+    }
+  }
+
+  emitSound(name, opt) {
     if (!this.sound || !this.ctx) return;
     const now = this.ctx.currentTime;
     switch (name) {
@@ -279,7 +300,13 @@ export class Sound {
     if (!this.music || !this.ctx || this.musicOn) return;
     this.musicOn = true;
     this.nextTime = this.ctx.currentTime + 0.08;
-    this.timer = setInterval(() => this.schedule(), 60);
+    this.timer = setInterval(() => {
+      try {
+        this.schedule();
+      } catch (e) {
+        /* звук не должен ломать игру */
+      }
+    }, 60);
   }
 
   stopMusic() {
@@ -310,8 +337,16 @@ export class Sound {
     this.danger = danger;
     this.boost = boost;
     if (!this.ctx || !this.musFilter) return;
-    const target = danger ? 1500 : 1900 + this.intensity * 5200 + (boost ? 1500 : 0);
-    this.musFilter.frequency.setTargetAtTime(target, this.ctx.currentTime, 0.35);
+    // Функцию зовут каждый кадр, а браузер копит каждую команду параметру в очереди.
+    // Поэтому цель округляем до 200 Гц и отправляем, только когда она изменилась.
+    const target = Math.round((danger ? 1500 : 1900 + this.intensity * 5200 + (boost ? 1500 : 0)) / 200) * 200;
+    if (target === this.filterTarget) return;
+    this.filterTarget = target;
+    try {
+      this.musFilter.frequency.setTargetAtTime(target, this.ctx.currentTime, 0.35);
+    } catch (e) {
+      /* звук не должен ломать игру */
+    }
   }
 
   schedule() {

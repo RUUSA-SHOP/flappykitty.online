@@ -11,9 +11,18 @@
 const VERSION = 'fk-2';
 const CACHE = `flappykitty-${VERSION}`;
 
-// Всё, без чего игра не запустится. Остальное (альбом, страницы сайта) сохраняется по мере просмотра.
+// Всё, без чего игра не запустится, и страницы сайта, на которые из неё ведут ссылки.
+// Картинки сайта и альбома сохраняются по мере просмотра.
 const CORE = [
   'play.html',
+  'index.html',
+  'love.html',
+  'mia.html',
+  'gallery.html',
+  'worlds.html',
+  'assets/css/site.css',
+  'assets/js/site.js',
+  'assets/js/love.js',
   'site.webmanifest',
   'assets/css/base.css',
   'assets/css/game.css',
