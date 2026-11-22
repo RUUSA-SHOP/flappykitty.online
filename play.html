@@ -69,6 +69,7 @@
 
   <p class="hint" id="hint" hidden><span>Тапни, чтобы взлететь</span></p>
   <p class="toast" id="toast" hidden></p>
+  <p class="bubble" id="bubble" hidden></p>
 
   <!-- ===== загрузка ===== -->
   <section class="screen screen--center" data-name="loading">
@@ -192,13 +193,26 @@
 
   <!-- ===== записка ===== -->
   <section class="screen screen--veil" data-name="note" hidden>
+    <!-- Финальное письмо приходит в запечатанном конверте; записки уровней — сразу листком. -->
+    <button class="envelope" id="envelope" type="button" hidden aria-label="Открыть письмо">
+      <span class="envelope__body" aria-hidden="true">
+        <span class="envelope__back"></span>
+        <svg class="envelope__flap" viewBox="0 0 300 120" preserveAspectRatio="none"><path d="M4 3h292L159 109a14 14 0 0 1-18 0z"/></svg>
+        <span class="envelope__paper"></span>
+        <svg class="envelope__pocket" viewBox="0 0 300 200" preserveAspectRatio="none"><path d="M3 60l147 92 147-92v128a9 9 0 0 1-9 9H12a9 9 0 0 1-9-9z"/></svg>
+        <span class="envelope__to" data-her-dative>Насте</span>
+        <span class="envelope__seal"><svg class="icon"><use href="#i-heart"/></svg></span>
+      </span>
+    </button>
+    <p class="envelope__hint" id="envelopeHint" hidden>Нажми на печать</p>
     <article class="letter" id="letter">
       <p class="letter__no" id="noteNo">Записка № 1</p>
       <h2 class="letter__title" id="noteTitle"></h2>
       <div class="letter__text" id="noteText"></div>
+      <figure class="polaroid" id="notePhoto" hidden></figure>
       <p class="letter__sign" id="noteSign"></p>
     </article>
-    <div class="panel__stack panel__stack--free">
+    <div class="panel__stack panel__stack--free" id="noteActions">
       <button class="btn" id="btnNoteNext" type="button">Дальше</button>
       <a class="btn btn--ghost btn--small" href="love.html" id="btnAllNotes">Все записки</a>
     </div>

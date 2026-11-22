@@ -886,6 +886,375 @@
   }
 }
 
+/* Записка бывает выше экрана. Центрируем её автоматическими отступами (margin: auto), а не
+   justify-content: center — иначе верх длинного письма уезжает за край и до него не долистать. */
+.screen[data-name='note'] {
+  justify-content: flex-start;
+}
+
+/* ---------- строки записки появляются одна за другой ---------- */
+
+.letter[hidden] {
+  display: none;
+}
+.letter--reveal > *,
+.letter--reveal .letter__text > p {
+  animation: line-in 0.6s ease both;
+  animation-delay: calc(var(--i, 0) * var(--gap, 0.16s) + 0.4s);
+}
+@keyframes line-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ---------- фото «на память» в записке ---------- */
+
+.polaroid {
+  position: relative;
+  width: min(62%, 200px);
+  margin: var(--row) auto calc(var(--row) * 0.5);
+  padding: 7px 7px 4px;
+  background: #fff;
+  border: 2px solid var(--plum);
+  border-radius: 4px;
+  box-shadow: 0 5px 0 rgba(58, 29, 46, 0.22);
+  rotate: 2.5deg;
+}
+.polaroid[hidden] {
+  display: none;
+}
+.polaroid::before {
+  content: '';
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  width: 64px;
+  height: 20px;
+  background: rgba(244, 201, 123, 0.85);
+  border-inline: 2px dashed rgba(255, 255, 255, 0.8);
+  transform: translateX(-50%) rotate(-4deg);
+}
+.polaroid img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  object-position: 50% 35%;
+  border-radius: 2px;
+  background: var(--blush);
+}
+.polaroid figcaption {
+  padding: 3px 2px 1px;
+  font-size: 0.8em;
+  line-height: 1.15;
+  text-align: center;
+  color: var(--plum);
+}
+
+/* ---------- конверт с финальным письмом ---------- */
+
+.envelope {
+  position: relative;
+  flex: none;
+  width: min(88%, 340px);
+  aspect-ratio: 3 / 2;
+  margin-top: auto;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  animation: envelope-in 0.7s cubic-bezier(0.2, 1.3, 0.4, 1) both, envelope-float 3.2s 0.7s ease-in-out infinite;
+}
+.envelope[hidden] {
+  display: none;
+}
+.envelope:focus-visible {
+  outline: 4px solid #fff;
+  outline-offset: 10px;
+  border-radius: 14px;
+}
+.envelope__body {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.envelope__back {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: #f3c18f;
+  border: var(--line);
+  border-radius: 12px;
+  box-shadow: var(--pop-lg);
+}
+.envelope__paper {
+  position: absolute;
+  inset: 9% 8% 12%;
+  z-index: 2;
+  background-color: #fffdf4;
+  background-image: repeating-linear-gradient(transparent 0 15px, rgba(214, 69, 106, 0.2) 15px 17px);
+  background-position: 0 12px;
+  border: var(--line);
+  border-radius: 6px;
+  transition: transform 0.65s cubic-bezier(0.3, 1.2, 0.5, 1) 0.5s;
+}
+.envelope__pocket,
+.envelope__flap {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  overflow: visible;
+}
+.envelope__pocket {
+  top: 0;
+  z-index: 3;
+  height: 100%;
+}
+.envelope__flap {
+  top: 0;
+  z-index: 4;
+  height: 60%;
+  transform-origin: 50% 2%;
+  transition: transform 0.5s cubic-bezier(0.5, 0, 0.3, 1) 0.15s, z-index 0s 0.4s;
+}
+.envelope__pocket path,
+.envelope__flap path {
+  fill: #ffdcb2;
+  stroke: var(--plum);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.envelope__flap path {
+  fill: #ffcf9d;
+}
+.envelope__to {
+  position: absolute;
+  right: 9%;
+  bottom: 7%;
+  z-index: 5;
+  font-family: var(--hand);
+  font-size: clamp(1.7rem, 9cqw, 2.3rem);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--plum);
+  rotate: -5deg;
+}
+.envelope__seal {
+  position: absolute;
+  top: 54%;
+  left: 50%;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  width: 23%;
+  aspect-ratio: 1;
+  color: #fff;
+  background: radial-gradient(circle at 35% 30%, #ef6b8c, var(--rose) 55%, var(--rose-deep));
+  border: var(--line);
+  border-radius: 50%;
+  box-shadow: 0 4px 0 var(--plum);
+  translate: -50% -50%;
+  animation: seal-beat 1.3s 0.9s ease-in-out infinite;
+  transition: transform 0.35s cubic-bezier(0.5, -0.6, 0.7, 1), opacity 0.25s 0.15s;
+}
+.envelope__seal .icon {
+  width: 52%;
+  height: 52%;
+}
+.envelope.is-open {
+  animation: none;
+  cursor: default;
+}
+.envelope.is-open .envelope__seal {
+  animation: none;
+  opacity: 0;
+  transform: scale(1.7) rotate(25deg);
+}
+.envelope.is-open .envelope__flap {
+  z-index: 1;
+  transform: scaleY(-1);
+}
+.envelope.is-open .envelope__paper {
+  transform: translateY(-58%);
+}
+.envelope__hint {
+  flex: none;
+  margin-bottom: auto;
+  padding: 8px 18px;
+  font-weight: 900;
+  color: var(--plum);
+  background: var(--paper);
+  border: var(--line);
+  border-radius: 999px;
+  box-shadow: 0 4px 0 var(--plum);
+  animation: nudge 1.1s ease-in-out infinite;
+}
+.envelope__hint[hidden] {
+  display: none;
+}
+@keyframes envelope-in {
+  from {
+    opacity: 0;
+    transform: translateY(70px) rotate(-8deg) scale(0.7);
+  }
+}
+@keyframes envelope-float {
+  50% {
+    transform: translateY(-9px) rotate(1.5deg);
+  }
+}
+@keyframes seal-beat {
+  0%,
+  100% {
+    scale: 1;
+  }
+  12% {
+    scale: 1.16;
+  }
+  24% {
+    scale: 1;
+  }
+  36% {
+    scale: 1.1;
+  }
+}
+
+/* ---------- облачко с репликой Мии в меню ---------- */
+
+.bubble {
+  position: absolute;
+  z-index: 6;
+  max-width: min(72%, 280px);
+  padding: 8px 16px 9px;
+  font-weight: 900;
+  font-size: 1.0625rem;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--plum);
+  background: var(--paper);
+  border: var(--line);
+  border-radius: 20px;
+  box-shadow: 0 4px 0 var(--plum);
+  pointer-events: none;
+  translate: -50% -100%;
+  transform-origin: 50% 120%;
+  animation: bubble-in 0.3s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.bubble[hidden] {
+  display: none;
+}
+.bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -10px;
+  width: 16px;
+  height: 16px;
+  background: var(--paper);
+  border-right: var(--line);
+  border-bottom: var(--line);
+  border-bottom-right-radius: 4px;
+  transform: translateX(-50%) rotate(45deg);
+}
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+/* ---------- меню «оживает» при появлении ---------- */
+
+.screen--menu .logo {
+  animation: logo-in 0.75s cubic-bezier(0.2, 1.5, 0.4, 1) backwards;
+}
+.screen--menu .menu__sub {
+  animation: sub-in 0.5s 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) backwards;
+}
+.screen--menu .menu__buttons > * {
+  animation: rise-in 0.5s cubic-bezier(0.2, 1.2, 0.4, 1) backwards;
+}
+.screen--menu .menu__buttons > :nth-child(1) {
+  animation-delay: 0.3s;
+}
+.screen--menu .menu__buttons > :nth-child(2) {
+  animation-delay: 0.4s;
+}
+.screen--menu .menu__buttons > :nth-child(3) {
+  animation-delay: 0.5s;
+}
+.screen--menu .menu__buttons > :nth-child(4) {
+  animation-delay: 0.6s;
+}
+/* главная кнопка «дышит» — взгляд сам идёт к ней */
+.menu__buttons > .btn--big {
+  position: relative;
+}
+.menu__buttons > .btn--big::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 3px solid #fff;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  animation: halo 2.2s 1.4s ease-out infinite;
+}
+@keyframes logo-in {
+  from {
+    opacity: 0;
+    transform: rotate(-14deg) translateY(-60px) scale(0.5);
+  }
+}
+@keyframes sub-in {
+  from {
+    opacity: 0;
+    transform: rotate(6deg) scale(0.5);
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+}
+@keyframes halo {
+  0% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.13, 1.42);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .letter--reveal > *,
+  .letter--reveal .letter__text > p,
+  .screen--menu .logo,
+  .screen--menu .menu__sub,
+  .screen--menu .menu__buttons > *,
+  .envelope,
+  .envelope__seal {
+    animation: none !important;
+  }
+  .menu__buttons > .btn--big::after {
+    display: none;
+  }
+  .envelope__paper,
+  .envelope__flap,
+  .envelope__seal {
+    transition: none !important;
+  }
+}
+
 .noscript {
   position: absolute;
   inset: auto 16px 16px;

@@ -180,6 +180,23 @@ for (const file of walk('assets/css').filter((f) => f.endsWith('.css'))) {
   if (open !== close) err(file, `фигурные скобки не сходятся: { ${open}, } ${close}`);
 }
 
+/* ---------- работа без сети ---------- */
+
+if (exists('sw.js')) {
+  const sw = read('sw.js');
+  const core = (sw.match(/const CORE = \[([\s\S]*?)\];/) || [])[1] || '';
+  const files = [...core.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  if (!files.length) err('sw.js', 'список CORE пуст или не читается');
+  for (const f of files) {
+    if (f.startsWith('/') || isExternal(f)) err('sw.js', `в CORE должен быть относительный путь: ${f}`);
+    else if (!exists(f)) err('sw.js', `в CORE указан несуществующий файл: ${f}`);
+  }
+  // каждый скрипт игры должен быть в списке, иначе без сети она не запустится
+  for (const f of jsFiles.filter((x) => x.startsWith('assets/js/game/') || x === 'assets/js/config.js' || x === 'assets/js/storage.js')) {
+    if (!files.includes(f)) err('sw.js', `скрипт игры ${f} не попал в CORE — без сети игра не откроется`);
+  }
+}
+
 /* ---------- манифест ---------- */
 
 try {

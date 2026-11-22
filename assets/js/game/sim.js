@@ -7,6 +7,9 @@ import { WORLD, LEVELS, endlessParams, POWERUPS } from './levels.js';
 const { H, GROUND, GRAVITY, FLAP, MAX_FALL, RADIUS, GATE_W } = WORLD;
 const FIRST_GATE = 560; // расстояние от Мии до первых ворот
 const FINISH_GAP = 1.2; // финиш стоит в 1.2 шага за последними воротами
+const NEAR_MISS = 9; // просвет между Мией и краем ворот, при котором пролёт считается «впритирку»
+const STREAK_STEP = 10; // каждые столько сердечек подряд — премия
+const STREAK_BONUS = 2;
 
 function mulberry32(a) {
   return function () {
@@ -59,6 +62,9 @@ export class Sim {
     this.hearts = 0; // собрано (с бонусами)
     this.pathHearts = 0; // собрано «обычных» сердечек — для звёзд
     this.heartsTotal = 0; // сколько обычных сердечек было на уровне
+    this.streak = 0; // сердечек подряд без пропуска
+    this.bestStreak = 0;
+    this.nearMisses = 0; // пролётов впритирку к воротам
     this.finishX = null;
     this.deadT = 0;
 
@@ -310,12 +316,28 @@ export class Sim {
         g.passed = true;
         this.passed++;
         this.emit('gate', { n: this.passed });
+        // Пролёт впритирку: только для красоты, на счёт и сложность не влияет.
+        if (!g.bumped && g.minClear != null && g.minClear < NEAR_MISS && this.status === 'playing') {
+          this.nearMisses++;
+          this.emit('near', { x: g.x + g.w, y: g.nearY, up: g.nearUp });
+        }
       }
       if (this.status !== 'playing') continue;
       if (wx + RADIUS < g.x || wx - RADIUS > g.x + g.w) continue;
       const top = g.gapY - g.gap / 2;
       const bot = g.gapY + g.gap / 2;
+      if (wx > g.x && wx < g.x + g.w) {
+        const up = m.y - RADIUS - top;
+        const down = bot - (m.y + RADIUS);
+        const clear = Math.min(up, down);
+        if (g.minClear == null || clear < g.minClear) {
+          g.minClear = clear;
+          g.nearUp = up < down;
+          g.nearY = up < down ? top : bot;
+        }
+      }
       if (circleRect(wx, m.y, RADIUS, g.x, -2000, g.w, top + 2000) || circleRect(wx, m.y, RADIUS, g.x, bot, g.w, GROUND - bot + 400)) {
+        g.bumped = true;
         if (ghost) {
           // не даём неуязвимости закончиться внутри препятствия
           if (this.inv > 0) this.inv = Math.max(this.inv, 0.15);
@@ -392,6 +414,11 @@ export class Sim {
     const pull = this.magnet > 0 || this.catnip > 0;
     for (const it of this.items) {
       if (it.taken) continue;
+      if (it.type === 'heart' && !it.missed && it.x < wx - 70) {
+        // сердечко осталось позади — серия прерывается
+        it.missed = true;
+        this.breakStreak();
+      }
       if (it.gate && !it.pulled) it.y = it.gate.gapY;
       let dx = wx - it.x;
       let dy = m.y - it.y;
@@ -432,7 +459,14 @@ export class Sim {
       case 'heart':
         this.hearts++;
         this.pathHearts++;
-        this.emit('heart', { x: it.x, y: it.y });
+        this.streak++;
+        if (this.streak > this.bestStreak) this.bestStreak = this.streak;
+        this.emit('heart', { x: it.x, y: it.y, streak: this.streak });
+        // каждые десять подряд — маленькая премия; на звёзды она не влияет
+        if (this.streak % STREAK_STEP === 0) {
+          this.hearts += STREAK_BONUS;
+          this.emit('streak', { n: this.streak, bonus: STREAK_BONUS });
+        }
         break;
       case 'fish':
         this.hearts += 5;
@@ -450,9 +484,15 @@ export class Sim {
     }
   }
 
+  breakStreak() {
+    if (this.streak >= 5) this.emit('streakEnd', { n: this.streak });
+    this.streak = 0;
+  }
+
   hit(cause) {
     if (this.status !== 'playing') return;
     const m = this.mia;
+    this.breakStreak();
     if (this.shield) {
       this.shield = false;
       this.inv = 1.3;

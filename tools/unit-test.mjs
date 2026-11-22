@@ -85,7 +85,60 @@ test('картинки обликов лежат на месте, первый �
   }
 });
 
+test('серия сердечек: премия каждые десять подряд, пропуск и удар обнуляют серию', () => {
+  const sim = new Sim({ levelId: 1, viewW: 380, seed: 5 });
+  sim.flap();
+  for (let i = 1; i <= 10; i++) sim.collect({ type: 'heart', x: 0, y: 0 });
+  assert.equal(sim.streak, 10);
+  assert.equal(sim.pathHearts, 10, 'премия не считается собранным сердечком — на звёзды она не влияет');
+  assert.equal(sim.hearts, 12, 'десять сердечек подряд дают +2');
+  assert.equal(sim.events.filter((e) => e.type === 'streak').length, 1);
+  assert.deepEqual(sim.events.filter((e) => e.type === 'heart').map((e) => e.streak), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  sim.hit('test');
+  assert.equal(sim.streak, 0, 'удар обнуляет серию');
+  assert.equal(sim.bestStreak, 10);
+  assert.equal(sim.events.filter((e) => e.type === 'streakEnd').length, 1);
+});
+
+test('пропущенное сердечко обнуляет серию, пролёт впритирку — только событие', () => {
+  for (const l of LEVELS) {
+    const sim = new Sim({ levelId: l.id, viewW: 380, seed: 99 });
+    let near = 0;
+    let maxStreak = 0;
+    const flown = fly(sim, {
+      onStep(s) {
+        near += s.events.filter((e) => e.type === 'near').length;
+        maxStreak = Math.max(maxStreak, s.streak);
+        s.events.length = 0;
+      },
+    });
+    assert.equal(near, flown.nearMisses, `уровень ${l.id}: счётчик пролётов впритирку расходится с событиями`);
+    assert.equal(maxStreak, flown.bestStreak);
+    assert.ok(flown.bestStreak <= flown.pathHearts);
+    // премии за серии — единственное, чем кошелёк отличается от собранного: рыбки и шарики считаются отдельно
+    assert.ok(flown.hearts >= flown.pathHearts);
+  }
+  // сердечко осталось позади — серия прерывается
+  const sim = new Sim({ levelId: 1, viewW: 380, seed: 3 });
+  sim.flap();
+  sim.streak = 6;
+  sim.items = [{ type: 'heart', x: sim.dist + sim.miaX - 200, y: 100 }];
+  sim.step(1 / 120);
+  assert.equal(sim.streak, 0);
+  assert.ok(sim.events.some((e) => e.type === 'streakEnd'));
+});
+
 /* ---------- настройки ---------- */
+
+test('config.js: реплики Мии и фото к запискам указывают на существующие файлы', () => {
+  assert.ok(Array.isArray(CONFIG.miaLines), 'miaLines должен быть списком (можно пустым)');
+  for (const line of CONFIG.miaLines) assert.ok(typeof line === 'string' && line.trim() && line.length <= 44, `реплика не помещается в облачко: «${line}»`);
+  for (const [id, ph] of Object.entries(CONFIG.photos || {})) {
+    assert.ok(+id >= 1 && +id <= LEVELS.length, `фото привязано к несуществующему уровню ${id}`);
+    assert.ok(fs.existsSync(path.join(ROOT, `assets/img/gallery/${ph.file}-thumb.webp`)), `нет файла assets/img/gallery/${ph.file}-thumb.webp`);
+    assert.ok(ph.caption && ph.alt, `фото уровня ${id}: нужны подпись и описание`);
+  }
+});
 
 test('config.js: записка есть для каждого уровня, письмо — для последнего', () => {
   for (let id = 1; id < LEVELS.length; id++) {
