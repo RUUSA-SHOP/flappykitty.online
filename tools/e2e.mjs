@@ -14,7 +14,9 @@
 import { createServer } from './serve.mjs';
 import { LEVELS } from '../assets/js/game/levels.js';
 
-const TOTAL = LEVELS.length; // уровней в сюжете; столько же записок вместе с письмом
+const TOTAL = LEVELS.length; // уровней в сюжете
+// На странице записок карточек больше: у каждого финала записка Мии и письмо создателя.
+const CARDS = CONFIG.notes.length + (CONFIG.letters || []).length * 2;
 const upTo = (n) => Array.from({ length: n }, (_, i) => i + 1);
 
 let puppeteer;
@@ -252,20 +254,21 @@ await test('альбом: фото открывается, листается с
 
 await test('записки: закрыты до прохождения, открываются по одной', async (track) => {
   const fresh = track(await open('love.html'));
-  equal(await fresh.evaluate(() => document.querySelectorAll('.note--locked').length), TOTAL, 'у нового гостя заперто всё');
-  equal(await text(fresh, '#noteCount'), `Открыто 0 из ${TOTAL}`, 'счётчик');
+  equal(await fresh.evaluate(() => document.querySelectorAll('.note--locked').length), CARDS, 'у нового гостя заперто всё');
+  equal(await text(fresh, '#noteCount'), `Открыто 0 из ${CARDS}`, 'счётчик');
   equal(await fresh.evaluate(() => [...document.querySelectorAll('.note--locked a')].map((a) => a.getAttribute('href'))), ['play.html?level=1'], 'кнопка «Пройти уровень» только у первой');
   assert(!(await fresh.evaluate(() => document.body.textContent.includes('Люблю'))), 'текст письма не должен попадать на страницу раньше времени');
 
   const some = track(await open('love.html', { save: { notes: [1, 2], levels: { 1: { done: true, stars: 3 }, 2: { done: true, stars: 1 } }, plays: 2 } }));
   equal(await some.evaluate(() => document.querySelectorAll('.note:not(.note--locked)').length), 2, 'открыто две записки');
-  equal(await text(some, '#noteCount'), `Открыто 2 из ${TOTAL}`, 'счётчик');
+  equal(await text(some, '#noteCount'), `Открыто 2 из ${CARDS}`, 'счётчик');
   equal((await stored(some)).seenNotes, [1, 2], 'открытые записки отмечаются прочитанными');
 
   const all = track(await open('love.html', { save: { rounds: TOTAL, notes: upTo(TOTAL), plays: 9 } }));
   equal(await all.evaluate(() => document.querySelectorAll('.note--locked').length), 0, 'после всех уровней открыто всё');
-  equal(await text(all, '#noteCount'), `Открыты все ${TOTAL}`, 'счётчик');
-  equal(await all.evaluate(() => document.querySelectorAll('#notes .note').length), TOTAL - 1, 'записок на странице');
+  equal(await text(all, '#noteCount'), `Открыты все ${CARDS}`, 'счётчик');
+  equal(await all.evaluate(() => document.querySelectorAll('#notes .note').length), CONFIG.notes.length, 'обычных записок на странице');
+  equal(await all.evaluate(() => document.querySelectorAll('#final .note--final').length), (CONFIG.letters || []).length, 'писем в блоке финала');
   assert(await visible(all, '.note--final'), 'письмо показано');
 
   const peek = track(await open('love.html?peek=1'));
@@ -483,7 +486,15 @@ await test('финал: после последнего уровня откры�
   equal(await text(page, '#btnNoteLabel'), 'Открыть письмо', 'кнопка письма');
   await page.click('#btnNote');
   await waitScreen(page, 'note');
-  // письмо приходит в запечатанном конверте: пока он закрыт, ни текста, ни кнопок не видно
+  // У финала две ступени. Сначала Мия пишет сама — конверта ещё нет.
+  const finLetter = (CONFIG.letters || []).find((l) => l.level === TOTAL);
+  assert(finLetter, 'у финала должно быть письмо в CONFIG.letters');
+  equal(await text(page, '#noteTitle'), finLetter.note.title, 'сначала записка Мии');
+  assert(!(await visible(page, '#envelope')), 'на первой ступени конверта быть не должно');
+  equal(await text(page, '#btnNoteNext'), 'Распечатать письмо', 'кнопка ведёт ко второй ступени');
+  await page.click('#btnNoteNext');
+  await waitScreen(page, 'note');
+  // Вторая ступень: письмо приходит в запечатанном конверте — пока он закрыт, ни текста, ни кнопок не видно
   assert(await visible(page, '#envelope'), 'конверт должен быть виден');
   equal(await text(page, '.envelope__to'), 'Насте', 'на конверте — кому письмо');
   assert(!(await visible(page, '#letter')), 'письмо не должно быть видно до вскрытия конверта');
@@ -493,7 +504,7 @@ await test('финал: после последнего уровня откры�
   await page.waitForFunction(() => !document.getElementById('letter').hidden, { timeout: 15000 });
   assert(!(await visible(page, '#envelope')), 'после вскрытия конверт убирается');
   equal(await page.evaluate(() => window.__fk.sound.theme), 'letter', 'у письма своя музыка');
-  equal(await text(page, '#noteNo'), 'Письмо', 'подпись над письмом');
+  equal(await text(page, '#noteNo'), `Письмо № ${(CONFIG.letters || []).length} из ${(CONFIG.letters || []).length}`, 'подпись над письмом');
   assert((await text(page, '#noteText')).length > 100, 'текст письма пустой');
   const top = await page.evaluate(() => {
     const scr = document.querySelector('.screen[data-name="note"]');
@@ -544,7 +555,7 @@ await test('старое сохранение (шесть уровней): фи�
   await page.close();
 
   const love = track(await open('love.html', { save: saved }));
-  equal(await text(love, '#noteCount'), `Открыто 6 из ${TOTAL}`, 'счётчик записок');
+  equal(await text(love, '#noteCount'), `Открыто 6 из ${CARDS}`, 'счётчик записок');
   assert(!(await love.evaluate(() => document.querySelector('#final .note').classList.contains('note--locked'))), 'письмо, которое уже открывали, остаётся открытым');
   equal(await love.evaluate(() => document.querySelectorAll('#notes .note--locked').length), 4, 'записки новых раундов ещё заперты');
   equal(await love.evaluate(() => [...document.querySelectorAll('.note--locked a')].map((a) => a.getAttribute('href'))), ['play.html?level=6'], 'кнопка «Пройти уровень» — у первого нового раунда');
@@ -571,7 +582,7 @@ await test('новые раунды: вступление с подсказко�
     await page.evaluate(() => document.getElementById('btnNote').click());
     await waitScreen(page, 'note');
     const note = CONFIG.notes.find((n) => n.level === id);
-    equal(await text(page, '#noteNo'), `Записка № ${id} из ${TOTAL - 1}`, `номер записки ${id}`);
+    equal(await text(page, '#noteNo'), `Записка № ${id} из ${CONFIG.notes.length}`, `номер записки ${id}`);
     equal(await text(page, '#noteTitle'), note.title, `заголовок записки ${id}`);
     assert(!(await visible(page, '#envelope')), `у записки ${id} конверта нет — он только у письма`);
     await page.waitForFunction(() => { const i = document.querySelector('#notePhoto img'); return i && i.complete && i.naturalWidth > 0; }, { timeout: 15000 });
@@ -1016,6 +1027,9 @@ await test('конверт с письмом помещается на мале�
     }, TOTAL);
     await waitScreen(page, 'win');
     await page.evaluate(() => document.getElementById('btnNote').click());
+    await waitScreen(page, 'note');
+    // финал двухступенчатый: сначала записка Мии, потом конверт
+    await page.evaluate(() => document.getElementById('btnNoteNext').click());
     await waitScreen(page, 'note');
   };
   for (const [w, h] of [[320, 568], [844, 390]]) {

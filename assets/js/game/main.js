@@ -622,49 +622,106 @@ function showWin() {
   go('win');
 }
 
-function showNote() {
-  const letter = letterFor(levelId);
-  const isFinal = !!letter;
-  const note = letter || CONFIG.notes.find((n) => n.level === levelId);
-  if (!note) return nextAfterWin();
-  const letterNo = (CONFIG.letters || []).indexOf(letter) + 1;
-  const letterTotal = (CONFIG.letters || []).length;
-  $('#noteNo').textContent = isFinal
-    ? letterTotal > 1 ? `Письмо № ${letterNo} из ${letterTotal}` : 'Письмо'
-    : `Записка № ${levelId} из ${CONFIG.notes.length}`;
-  $('#noteTitle').textContent = note.title;
+/** Наполняет листок записки или письма. Строки появляются одна за другой. */
+function fillSheet({ no, title, text, sign, slow, photoId }) {
+  $('#noteNo').textContent = no;
+  $('#noteTitle').textContent = title;
   const box = $('#noteText');
   box.innerHTML = '';
-  note.text.split(/\n\s*\n/).forEach((par) => {
+  text.split(/\n\s*\n/).forEach((par) => {
     const p = document.createElement('p');
     p.textContent = par.trim();
     box.appendChild(p);
   });
-  setSignature($('#noteSign'), isFinal ? CONFIG.from : `— ${note.from || CONFIG.cat.name}`);
-  $('#btnNoteNext').textContent = levelId >= LEVELS.length ? 'В меню' : `Дальше · уровень ${levelId + 1}`;
-  fillPhoto(levelId);
-  // строки появляются одна за другой: письмо — неторопливо, записки — быстрее
-  const letter = $('#letter');
-  letter.style.setProperty('--gap', isFinal ? '0.55s' : '0.16s');
+  setSignature($('#noteSign'), sign);
+  fillPhoto(photoId);
+  const sheet = $('#letter');
+  sheet.style.setProperty('--gap', slow ? '0.55s' : '0.16s');
   $$('#noteNo, #noteTitle, #noteText p, #notePhoto, #noteSign').forEach((el, i) => el.style.setProperty('--i', i));
-  save.markNoteSeen(levelId);
-  afterNote = nextAfterWin;
-  go('note');
-  if (isFinal) {
-    // Финал: сначала запечатанный конверт. Письмо появится, когда его откроют.
-    const env = $('#envelope');
-    env.classList.remove('is-open');
-    env.hidden = false;
-    env.disabled = false;
-    $('#envelopeHint').hidden = false;
-    letter.hidden = true;
-    $('#noteActions').hidden = true;
-    renderer.fest = true;
-    if (matchMedia('(hover: hover)').matches) env.focus({ preventScroll: true });
-  } else {
+}
+
+/**
+ * Экран записки. Обычный уровень — одна записка.
+ * Финал — две ступени: сначала записка от Мии, потом конверт с письмом создателя.
+ * Письмо не открывается само: его нужно распечатать, как настоящий конверт.
+ */
+function showNote(stage = 'note') {
+  const letter = letterFor(levelId);
+  const isFinal = !!letter;
+  const envelope = $('#envelope');
+  const sheet = $('#letter');
+  const actions = $('#noteActions');
+
+  if (isFinal && stage === 'note') {
+    // Первая ступень: Мия пишет сама.
+    fillSheet({
+      no: `Записка № ${levelId} из ${CONFIG.notes.length + (CONFIG.letters || []).length}`,
+      title: letter.note.title,
+      text: letter.note.text,
+      sign: `— ${CONFIG.cat.name}`,
+      slow: false,
+      photoId: levelId,
+    });
+    $('#btnNoteNext').textContent = 'Распечатать письмо';
+    afterNote = () => showNote('letter');
+    envelope.hidden = true;
+    $('#envelopeHint').hidden = true;
+    sheet.hidden = false;
+    actions.hidden = false;
+    renderer.fest = false;
+    save.markNoteSeen(levelId);
+    go('note');
     sound.play('paper');
     revealLetter();
+    return;
   }
+
+  if (isFinal) {
+    // Вторая ступень: запечатанный конверт, письмо откроется по нажатию.
+    const letterNo = (CONFIG.letters || []).indexOf(letter) + 1;
+    const letterTotal = (CONFIG.letters || []).length;
+    fillSheet({
+      no: letterTotal > 1 ? `Письмо № ${letterNo} из ${letterTotal}` : 'Письмо',
+      title: letter.title,
+      text: letter.text,
+      sign: CONFIG.from,
+      slow: true,
+      photoId: levelId,
+    });
+    $('#btnNoteNext').textContent = levelId >= LEVELS.length ? 'В меню' : `Дальше · уровень ${levelId + 1}`;
+    afterNote = nextAfterWin;
+    save.markNoteSeen(levelId);
+    go('note');
+    envelope.classList.remove('is-open');
+    envelope.hidden = false;
+    envelope.disabled = false;
+    $('#envelopeHint').hidden = false;
+    sheet.hidden = true;
+    actions.hidden = true;
+    renderer.fest = true;
+    if (matchMedia('(hover: hover)').matches) envelope.focus({ preventScroll: true });
+    return;
+  }
+
+  // Обычная записка уровня.
+  const note = CONFIG.notes.find((n) => n.level === levelId);
+  if (!note) return nextAfterWin();
+  fillSheet({
+    no: `Записка № ${levelId} из ${CONFIG.notes.length}`,
+    title: note.title,
+    text: note.text,
+    sign: `— ${note.from || CONFIG.cat.name}`,
+    slow: false,
+    photoId: levelId,
+  });
+  $('#btnNoteNext').textContent = levelId >= LEVELS.length ? 'В меню' : `Дальше · уровень ${levelId + 1}`;
+  afterNote = nextAfterWin;
+  envelope.hidden = true;
+  $('#envelopeHint').hidden = true;
+  save.markNoteSeen(levelId);
+  go('note');
+  sound.play('paper');
+  revealLetter();
 }
 
 function fillPhoto(id) {
@@ -890,7 +947,8 @@ function bind() {
   $('#btnRetry').addEventListener('click', () => { sound.play('click'); restart(); });
   $('#btnWinRetry').addEventListener('click', () => { sound.play('click'); restart(); });
   $('#btnAgain').addEventListener('click', () => { sound.play('click'); restart(); });
-  $('#btnNote').addEventListener('click', showNote);
+  // не передавать showNote напрямую: первым аргументом придёт Event и сломает выбор ступени финала
+  $('#btnNote').addEventListener('click', () => showNote());
   $('#envelope').addEventListener('click', openEnvelope);
   $('#btnWinNext').addEventListener('click', () => { sound.play('click'); nextAfterWin(); });
   $('#btnMute').addEventListener('click', () => {

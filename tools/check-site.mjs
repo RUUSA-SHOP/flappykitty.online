@@ -251,7 +251,9 @@ if (exists('sw.js')) {
   }
   // счётчик записок в разметке — до того, как его перерисует скрипт
   if (exists('love.html')) {
-    const TOTAL = N; // записок столько же, сколько уровней: после каждого — записка или письмо
+    // Карточек на странице записок: обычные записки + у каждого финала записка Мии и письмо.
+    const LETTERS = (CONFIG.letters || []).length;
+    const TOTAL = CONFIG.notes.length + LETTERS * 2;
     const m = read('love.html').match(/id="noteCount">Открыто 0 из (\d+)</);
     if (!m || +m[1] !== TOTAL) err('love.html', `счётчик записок «Открыто 0 из ${m ? m[1] : '?'}», должно быть ${TOTAL}`);
   }

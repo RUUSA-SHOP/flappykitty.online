@@ -189,6 +189,8 @@ test('config.js: записка есть для каждого уровня, п�
   }
   assert.deepEqual([...letterLevels].sort((a, b) => a - b), [10, 20], 'письма открываются после 10-го и 20-го уровней');
   for (const letter of CONFIG.letters) {
+    // у финала две ступени: записка от Мии, потом письмо создателя
+    assert.ok(letter.note && letter.note.title.trim() && letter.note.text.trim(), `у финала ${letter.level} нет записки Мии`);
     assert.ok(letter.title.trim() && letter.text.trim(), `пустое письмо после уровня ${letter.level}`);
     assert.ok(letter.level >= 1 && letter.level <= LEVELS.length, `письмо привязано к несуществующему уровню ${letter.level}`);
   }
