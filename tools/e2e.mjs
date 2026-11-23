@@ -552,13 +552,15 @@ await test('старое сохранение (шесть уровней): фи�
   await waitScreen(page, 'levels');
   const cards = await page.evaluate(() => [...document.querySelectorAll('#levelList .level')].map((c) => `${c.disabled ? 'закрыт' : 'открыт'}:${c.querySelectorAll('.level__stars .on').length}`));
   // Старое сохранение знало один финал — шестой. Переезжает он на ПЕРВЫЙ финал новой сетки
-  // (это уровень 10 из 20), а не на последний. Открыты: 1–5, шестой (ждёт прохождения) и сам финал.
+  // (это уровень 10 из 20), а не на последний. Открыты: 1–5, шестой (ждёт прохождения),
+  // сам финал и следующий за ним уровень — пройденный уровень открывает соседа.
   const firstFinal = CONFIG.letters[0].level;
   const want = Array.from({ length: TOTAL }, (_, i) => {
     const id = i + 1;
     if (id <= 5) return 'открыт:3';
     if (id === 6) return 'открыт:0';
     if (id === firstFinal) return 'открыт:2';
+    if (id === firstFinal + 1) return 'открыт:0';
     return 'закрыт:0';
   });
   equal(cards, want, 'карточки уровней');
