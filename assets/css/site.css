@@ -413,7 +413,7 @@ h3 {
 
 .levels-strip {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr)); /* десять уровней — два ряда по пять */
   gap: 16px;
   margin: 0;
   padding: 0;
@@ -437,6 +437,19 @@ h3 {
   object-fit: cover;
   object-position: 50% 42%;
 }
+.lvl__shot--soon {
+  display: grid;
+  place-items: center;
+  /* уровень без кадра: мягкая заливка, чтобы карточка не выглядела сломанной */
+  background: linear-gradient(160deg, #fbe8ec 0%, #f7f1fb 55%, #eef4fb 100%);
+}
+.lvl__shot--soon::after {
+  content: "Кадр скоро";
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  color: #a98a97;
+}
+
 .lvl__n {
   position: absolute;
   left: 10px;
@@ -465,15 +478,11 @@ h3 {
   line-height: 1.4;
   color: var(--plum-soft);
 }
-@media (max-width: 1080px) {
-  .levels-strip {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-@media (max-width: 640px) {
+/* на планшете и телефоне — лента, которую листают вбок */
+@media (max-width: 900px) {
   .levels-strip {
     grid-auto-flow: column;
-    grid-auto-columns: 68%;
+    grid-auto-columns: 30%;
     grid-template-columns: none;
     margin-inline: -20px;
     padding: 4px 20px 14px;
@@ -484,6 +493,11 @@ h3 {
   }
   .levels-strip > li {
     scroll-snap-align: start;
+  }
+}
+@media (max-width: 640px) {
+  .levels-strip {
+    grid-auto-columns: 68%;
   }
 }
 
@@ -1232,6 +1246,14 @@ a.world:hover {
   background-position: 0 calc(36px - var(--row) * 0.14);
   transform: rotate(-0.6deg);
 }
+.note__sep {
+  border: 0;
+  height: 1px;
+  max-width: 44rem;
+  margin: 28px auto;
+  background: linear-gradient(90deg, transparent, rgba(180, 130, 150, 0.35), transparent);
+}
+
 .note--final.note--locked {
   --row: 1.45rem;
   min-height: 240px;

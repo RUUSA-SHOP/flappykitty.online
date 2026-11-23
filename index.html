@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Flappy Kitty — Мия научилась летать</title>
-  <meta name="description" content="Игра про кошку Мию: шесть уровней, целое небо сердечек и записки в конце каждого. Сделана для Насти.">
+  <meta name="description" content="Игра про кошку Мию: двадцать уровней в двух главах, целое небо сердечек и записки в конце каждого. Сделана для Насти.">
   <!-- Сайт личный: просим поисковики его не индексировать. Убери строку ниже, если хочешь, чтобы сайт находился в поиске. -->
   <meta name="robots" content="noindex">
   <meta name="theme-color" content="#fff7f0">
@@ -14,9 +14,9 @@
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ru_RU">
   <meta property="og:title" content="Flappy Kitty — Мия научилась летать">
-  <meta property="og:description" content="Игра про кошку Мию: шесть уровней, целое небо сердечек и записки в конце каждого. Сделана для Насти.">
-  <meta property="og:url" content="https://flappykitty.online/">
-  <meta property="og:image" content="https://flappykitty.online/assets/img/og.jpg">
+  <meta property="og:description" content="Игра про кошку Мию: двадцать уровней в двух главах, целое небо сердечек и записки в конце каждого. Сделана для Насти.">
+  <meta property="og:url" content="https://miagpt.github.io/flappykitty.online/">
+  <meta property="og:image" content="https://miagpt.github.io/flappykitty.online/assets/img/og.jpg">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="preload" href="assets/fonts/nunito-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="assets/css/base.css">
@@ -63,7 +63,7 @@
     <div class="wrap hero__in">
       <div class="hero__text">
         <h1><span class="script">Flappy Kitty</span>Мия научилась летать</h1>
-        <p class="lead">Одна вислоухая кошка, шесть уровней и целое небо сердечек. Игра сделана для Насти — и только для неё.</p>
+        <p class="lead">Одна вислоухая кошка, двадцать уровней и целое небо сердечек. Игра сделана для Насти — и только для неё.</p>
         <div class="hero__cta">
           <a class="btn btn--big" href="play.html"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>Играть</a>
           <a class="btn btn--ghost" href="#levels">Что внутри</a>
@@ -76,7 +76,7 @@
         <svg class="float-heart" style="right:-6%;bottom:8%;--s:40px;--d:6s;--delay:-4s" aria-hidden="true"><use href="#i-heart"/></svg>
         <img class="hero__mia sticker" src="assets/img/stickers/hero-raincoat.webp" alt="Мия в розовом дождевике лежит, свесив лапы" width="758" height="578" fetchpriority="high">
         <div class="phone">
-          <img src="assets/img/shots/6-love.webp" alt="Кадр из игры: Мия летит между колоннами на закате" width="540" height="996">
+          <img src="assets/img/shots/10-love.webp" alt="Кадр из игры: Мия летит между колоннами на закате" width="540" height="996">
         </div>
       </div>
     </div>
@@ -86,7 +86,7 @@
     <div class="wrap">
       <header class="section__head">
         <p class="eyebrow">Сюжет</p>
-        <h2>Шесть уровней — от дивана до самого главного сердца</h2>
+        <h2>Двадцать уровней — от дивана до самого главного сердца</h2>
         <p class="lead">Каждый уровень — место из жизни Мии, и в каждом своя хитрость.</p>
       </header>
       <ol class="levels-strip">
@@ -153,12 +153,170 @@
         <li>
           <article class="card lvl">
             <div class="lvl__shot">
-              <img src="assets/img/shots/6-love.webp" alt="Кадр из уровня «Дорога к Насте»" width="540" height="996" loading="lazy">
+              <img src="assets/img/shots/6-rain.webp" alt="Кадр из уровня «Под дождём»" width="540" height="996" loading="lazy">
               <span class="lvl__n" aria-hidden="true">6</span>
+            </div>
+            <div class="lvl__body">
+              <h3>Под дождём</h3>
+              <p>Тучки, капли и радуга в конце.</p>
+            </div>
+          </article>
+        </li>
+        <li>
+          <article class="card lvl">
+            <div class="lvl__shot">
+              <img src="assets/img/shots/7-pond.webp" alt="Кадр из уровня «Лягушачий пруд»" width="540" height="996" loading="lazy">
+              <span class="lvl__n" aria-hidden="true">7</span>
+            </div>
+            <div class="lvl__body">
+              <h3>Лягушачий пруд</h3>
+              <p>Кувшинки, стрекозы и прыгучие лягушата.</p>
+            </div>
+          </article>
+        </li>
+        <li>
+          <article class="card lvl">
+            <div class="lvl__shot">
+              <img src="assets/img/shots/8-plush.webp" alt="Кадр из уровня «Плюшевый совет»" width="540" height="996" loading="lazy">
+              <span class="lvl__n" aria-hidden="true">8</span>
+            </div>
+            <div class="lvl__body">
+              <h3>Плюшевый совет</h3>
+              <p>Передышка: клубки с сердечками.</p>
+            </div>
+          </article>
+        </li>
+        <li>
+          <article class="card lvl">
+            <div class="lvl__shot">
+              <img src="assets/img/shots/9-gothic.webp" alt="Кадр из уровня «Поцелуй или кусь»" width="540" height="996" loading="lazy">
+              <span class="lvl__n" aria-hidden="true">9</span>
+            </div>
+            <div class="lvl__body">
+              <h3>Поцелуй или кусь</h3>
+              <p>Розовая луна и летучие мыши.</p>
+            </div>
+          </article>
+        </li>
+        <li>
+          <article class="card lvl">
+            <div class="lvl__shot">
+              <img src="assets/img/shots/10-love.webp" alt="Кадр из уровня «Дорога к Насте»" width="540" height="996" loading="lazy">
+              <span class="lvl__n" aria-hidden="true">10</span>
             </div>
             <div class="lvl__body">
               <h3>Дорога к Насте</h3>
               <p>Закат, белые розы и финиш.</p>
+            </div>
+          </article>
+        </li>
+        <li>
+          <article class="card lvl">
+            <div class="lvl__shot lvl__shot--soon">
+              <span class="lvl__n" aria-hidden="true">11</span>
+            </div>
+            <div class="lvl__body">
+              <h3>Чердак</h3>
+              <p>Коробки, пыль и луч света.</p>
+            </div>
+          </article>
+        </li>
+        <li>
+          <article class="card lvl">
+            <div class="lvl__shot lvl__shot--soon">
+              <span class="lvl__n" aria-hidden="true">12</span>
+            </div>
+            <div class="lvl__body">
+              <h3>Робот-пылесос</h3>
+              <p>Он думает, что Мия — комок шерсти.</p>
+            </div>
+          </article>
+        </li>
+        <li>
+          <article class="card lvl">
+            <div class="lvl__shot lvl__shot--soon">
+              <span class="lvl__n" aria-hidden="true">13</span>
+            </div>
+            <div class="lvl__body">
+              <h3>Корзинка с нитками</h3>
+              <p>Клубки разбежались по всей комнате.</p>
+            </div>
+          </article>
+        </li>
+        <li>
+          <article class="card lvl">
+            <div class="lvl__shot lvl__shot--soon">
+              <span class="lvl__n" aria-hidden="true">14</span>
+            </div>
+            <div class="lvl__body">
+              <h3>Ванная</h3>
+              <p>Капли с потолка и мыльные пузыри.</p>
+            </div>
+          </article>
+        </li>
+        <li>
+          <article class="card lvl">
+            <div class="lvl__shot lvl__shot--soon">
+              <span class="lvl__n" aria-hidden="true">15</span>
+            </div>
+            <div class="lvl__body">
+              <h3>Двор</h3>
+              <p>Первый выход без дождевика.</p>
+            </div>
+          </article>
+        </li>
+        <li>
+          <article class="card lvl">
+            <div class="lvl__shot lvl__shot--soon">
+              <span class="lvl__n" aria-hidden="true">16</span>
+            </div>
+            <div class="lvl__body">
+              <h3>Пекарня</h3>
+              <p>Пар, мука и летящие булочки.</p>
+            </div>
+          </article>
+        </li>
+        <li>
+          <article class="card lvl">
+            <div class="lvl__shot lvl__shot--soon">
+              <span class="lvl__n" aria-hidden="true">17</span>
+            </div>
+            <div class="lvl__body">
+              <h3>Ящик с игрушками</h3>
+              <p>Оловянные солдатики в атаке.</p>
+            </div>
+          </article>
+        </li>
+        <li>
+          <article class="card lvl">
+            <div class="lvl__shot lvl__shot--soon">
+              <span class="lvl__n" aria-hidden="true">18</span>
+            </div>
+            <div class="lvl__body">
+              <h3>Камин</h3>
+              <p>Тепло, угольки и лучшее место в доме.</p>
+            </div>
+          </article>
+        </li>
+        <li>
+          <article class="card lvl">
+            <div class="lvl__shot lvl__shot--soon">
+              <span class="lvl__n" aria-hidden="true">19</span>
+            </div>
+            <div class="lvl__body">
+              <h3>Гроза</h3>
+              <p>Молнии, дождь и самый страшный вечер.</p>
+            </div>
+          </article>
+        </li>
+        <li>
+          <article class="card lvl">
+            <div class="lvl__shot lvl__shot--soon">
+              <span class="lvl__n" aria-hidden="true">20</span>
+            </div>
+            <div class="lvl__body">
+              <h3>Дорога к Насте · рассвет</h3>
+              <p>Финал. Самая длинная дорога.</p>
             </div>
           </article>
         </li>
@@ -206,7 +364,7 @@
           <article class="card feature">
             <span class="feature__icon" style="--c:#fbdde2"><svg aria-hidden="true"><use href="#i-mail"/></svg></span>
             <h3>Записки</h3>
-            <p>После каждого уровня Мия оставляет записку. После шестого — письмо.</p>
+            <p>После каждого уровня Мия оставляет записку. А в конце каждой главы приходит письмо — их два.</p>
           </article>
         </li>
         <li>

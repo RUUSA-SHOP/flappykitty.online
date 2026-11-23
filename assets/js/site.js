@@ -8,6 +8,11 @@ window.addEventListener('pageshow', (e) => {
   if (e.persisted) location.reload();
 });
 
+// После первого открытия сайт запускается и без связи: копию хранит sw.js.
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+
 /* ---------- кошелёк в шапке ---------- */
 
 const walletBox = document.querySelector('[data-wallet-box]');

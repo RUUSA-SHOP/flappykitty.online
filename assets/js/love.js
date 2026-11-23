@@ -32,9 +32,10 @@ function paragraphs(parent, text) {
   text.split(/\n{2,}/).forEach((part) => parent.append(el('p', '', part.trim())));
 }
 
-function openNote(note, { final = false } = {}) {
+function openNote(note, { final = false, label = '', sender = false } = {}) {
   const card = el('article', final ? 'note note--final' : 'note');
-  card.append(el('span', 'note__no', final ? 'Письмо' : `Записка № ${note.level} · ${levelName(note.level)}`));
+  const text = final ? label || 'Письмо' : sender ? `Записка Мии · после уровня «${levelName(note.level)}»` : `Записка № ${note.level} · ${levelName(note.level)}`;
+  card.append(el('span', 'note__no', text));
   card.append(el(final ? 'h2' : 'h3', '', note.title));
   paragraphs(card, note.text);
   const sign = el('p', 'note__sign');
@@ -43,12 +44,12 @@ function openNote(note, { final = false } = {}) {
   return card;
 }
 
-function lockedNote(note, { final = false } = {}) {
+function lockedNote(note, { final = false, label = '' } = {}) {
   const card = el('article', final ? 'note note--final note--locked' : 'note note--locked');
   const lock = el('span', 'lockicon');
   lock.append(icon('i-lock'));
   card.append(lock);
-  card.append(el('strong', '', final ? 'Письмо' : `Записка № ${note.level}`));
+  card.append(el('strong', '', final ? label || 'Письмо' : `Записка № ${note.level}`));
   card.append(el('span', '', `Откроется после уровня «${levelName(note.level)}»`));
   const canPlay = save.isLevelOpen(note.level);
   if (canPlay) {
@@ -66,15 +67,33 @@ CONFIG.notes.forEach((note) => {
   list.append(li);
 });
 
-const final = CONFIG.finalLetter;
-document
-  .getElementById('final')
-  .append(isOpen(final.level) ? openNote(final, { final: true }) : lockedNote(final, { final: true }));
+// У каждого финала две карточки: записка самой Мии и письмо создателя под ней.
+// Так на странице видно, что письмо — не от Мии, а «переданное».
+const letters = CONFIG.letters || [];
+const finalBox = document.getElementById('final');
+letters.forEach((letter, i) => {
+  if (i > 0) finalBox.append(el('hr', 'note__sep'));
+  const open = isOpen(letter.level);
+  const who = `Письмо № ${i + 1} из ${letters.length}`;
+  // 1) записка Мии
+  finalBox.append(
+    open
+      ? openNote({ ...letter.note, level: letter.level }, { sender: true })
+      : lockedNote({ ...letter.note, level: letter.level })
+  );
+  // 2) письмо создателя — визуально отдельно, под запиской
+  finalBox.append(
+    open
+      ? openNote(letter, { final: true, label: who })
+      : lockedNote(letter, { final: true, label: who })
+  );
+});
 
-const total = CONFIG.notes.length + 1;
-const got = [...CONFIG.notes, final].filter((n) => isOpen(n.level)).length;
+const total = CONFIG.notes.length + letters.length * 2;
+const got = [...CONFIG.notes, ...letters, ...letters.map((l) => ({ level: l.level }))]
+  .filter((n) => isOpen(n.level)).length;
 document.getElementById('noteCount').textContent =
   got === total ? `Открыты все ${total}` : `Открыто ${got} из ${total}`;
 
 // Всё, что открыто на этой странице, считается прочитанным — метка «новое» в игре гаснет.
-if (!peek) [...CONFIG.notes, final].forEach((n) => opened.has(n.level) && save.markNoteSeen(n.level));
+if (!peek) [...CONFIG.notes, ...letters].forEach((n) => opened.has(n.level) && save.markNoteSeen(n.level));

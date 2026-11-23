@@ -17,8 +17,14 @@ globalThis.localStorage = {
   clear: () => store.clear(),
 };
 
+// Список опасностей, которые умеет и симулировать, и рисовать игра.
+// Новая опасность попадает сюда только вместе с ветками в sim.js и render.js.
+const HAZARDS = [
+  'drop', 'balloon', 'cucumber', 'wind', 'rain', 'frog', 'yarn', 'bat',
+  'dust', 'roomba', 'bubble', 'bird', 'bun', 'soldier', 'ember', 'steam', 'lightning',
+];
 const { Sim } = await import('../assets/js/game/sim.js');
-const { LEVELS, SKINS, POWERUPS, WORLD, endlessParams } = await import('../assets/js/game/levels.js');
+const { LEVELS, SKINS, POWERUPS, WORLD, ENDLESS_THEMES, endlessParams } = await import('../assets/js/game/levels.js');
 const { THEMES } = await import('../assets/js/game/themes.js');
 const { CONFIG, isBirthday } = await import('../assets/js/config.js');
 
@@ -60,11 +66,37 @@ test('уровни идут по порядку и ссылаются на су�
     assert.equal(l.id, i + 1, `id уровня №${i + 1}`);
     assert.ok(THEMES[l.theme], `нет темы «${l.theme}» для уровня ${l.id}`);
     for (const key of ['sky', 'far', 'ground', 'column']) assert.equal(typeof THEMES[l.theme][key], 'function', `${l.theme}.${key}`);
-    assert.ok(l.name && l.tagline && l.story, `у уровня ${l.id} нет названия или описания`);
+    assert.ok(l.name && l.tagline && l.story && l.tip, `у уровня ${l.id} нет названия, описания или подсказки`);
     assert.ok(l.gates >= 5 && l.gap >= 150 && l.speed > 0 && l.spacing >= 250, `странные параметры уровня ${l.id}`);
     for (const p of l.powerups) assert.ok(POWERUPS[p], `неизвестный бонус «${p}»`);
-    for (const h of l.hazards) assert.ok(['drop', 'balloon', 'cucumber', 'wind'].includes(h), `неизвестная опасность «${h}»`);
+    for (const h of l.hazards) assert.ok(HAZARDS.includes(h), `неизвестная опасность «${h}»`);
   });
+  assert.equal(LEVELS.length, 20, 'в сюжете двадцать уровней');
+  assert.equal(new Set(LEVELS.map((l) => l.theme)).size, LEVELS.length, 'у каждого уровня свой мир');
+  // Два финала: 10-й закрывает первую главу, 20-й — вторую.
+  // В каждой главе финал длиннее и теснее любого своего уровня — и примерно вдвое длиннее предыдущего.
+  const finals = LEVELS.filter((l) => l.finale).map((l) => l.id);
+  assert.deepEqual(finals, [10, 20], 'финалы — десятый и двадцатый уровни');
+  let start = 0;
+  for (const finId of finals) {
+    const block = LEVELS.slice(start, finId);
+    const fin = block[block.length - 1];
+    const prev = block[block.length - 2];
+    assert.ok(fin.gates / prev.gates >= 1.5, `финал № ${finId} должен быть заметно длиннее предыдущего уровня`);
+    for (const l of block.slice(0, -1)) {
+      assert.ok(l.gates < fin.gates, `уровень ${l.id} длиннее финала № ${finId}`);
+      // финал может быть на волосок теснее любого уровня главы, но не должен быть дырой уже него
+      assert.ok(l.gap >= fin.gap - 8, `уровень ${l.id}: просвет ${l.gap} заметно шире, чем в финале ${fin.gap}`);
+      assert.ok(l.speed <= fin.speed + 6, `уровень ${l.id} быстрее финала № ${finId}`);
+    }
+    start = finId;
+  }
+});
+
+test('цвета меню и подсказок заданы для каждого мира', () => {
+  for (const [id, th] of Object.entries(THEMES)) {
+    assert.ok(th.name && th.ambient && /^#[0-9A-F]{6}$/i.test(th.hud), `тема «${id}»: нужны name, ambient и hud`);
+  }
 });
 
 test('бесконечный режим использует только существующие темы', () => {
@@ -73,6 +105,12 @@ test('бесконечный режим использует только сущ
     assert.ok(THEMES[p.theme], `нет темы «${p.theme}»`);
     assert.ok(p.gap >= 150, 'просвет слишком узкий');
   }
+  for (const th of ENDLESS_THEMES) assert.ok(THEMES[th], `нет темы «${th}»`);
+  assert.deepEqual(endlessParams(0).hazards, [], 'первые ворота бесконечного режима — без опасностей');
+  const met = new Set();
+  for (let n = 0; n < 60; n++) for (const h of endlessParams(n).hazards) met.add(h);
+  for (const h of ['balloon', 'cucumber', 'wind', 'rain', 'frog', 'yarn', 'bat']) assert.ok(met.has(h), `за первый круг по мирам не встретилось: ${h}`);
+  assert.deepEqual([...ENDLESS_THEMES].sort(), LEVELS.map((l) => l.theme).sort(), 'в бесконечном режиме — миры всех уровней');
 });
 
 test('картинки обликов лежат на месте, первый облик бесплатный', () => {
@@ -85,17 +123,81 @@ test('картинки обликов лежат на месте, первый �
   }
 });
 
+test('серия сердечек: премия каждые десять подряд, пропуск и удар обнуляют серию', () => {
+  const sim = new Sim({ levelId: 1, viewW: 380, seed: 5 });
+  sim.flap();
+  for (let i = 1; i <= 10; i++) sim.collect({ type: 'heart', x: 0, y: 0 });
+  assert.equal(sim.streak, 10);
+  assert.equal(sim.pathHearts, 10, 'премия не считается собранным сердечком — на звёзды она не влияет');
+  assert.equal(sim.hearts, 12, 'десять сердечек подряд дают +2');
+  assert.equal(sim.events.filter((e) => e.type === 'streak').length, 1);
+  assert.deepEqual(sim.events.filter((e) => e.type === 'heart').map((e) => e.streak), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  sim.hit('test');
+  assert.equal(sim.streak, 0, 'удар обнуляет серию');
+  assert.equal(sim.bestStreak, 10);
+  assert.equal(sim.events.filter((e) => e.type === 'streakEnd').length, 1);
+});
+
+test('пропущенное сердечко обнуляет серию, пролёт впритирку — только событие', () => {
+  for (const l of LEVELS) {
+    const sim = new Sim({ levelId: l.id, viewW: 380, seed: 99 });
+    let near = 0;
+    let maxStreak = 0;
+    const flown = fly(sim, {
+      onStep(s) {
+        near += s.events.filter((e) => e.type === 'near').length;
+        maxStreak = Math.max(maxStreak, s.streak);
+        s.events.length = 0;
+      },
+    });
+    assert.equal(near, flown.nearMisses, `уровень ${l.id}: счётчик пролётов впритирку расходится с событиями`);
+    assert.equal(maxStreak, flown.bestStreak);
+    assert.ok(flown.bestStreak <= flown.pathHearts);
+    // премии за серии — единственное, чем кошелёк отличается от собранного: рыбки и шарики считаются отдельно
+    assert.ok(flown.hearts >= flown.pathHearts);
+  }
+  // сердечко осталось позади — серия прерывается
+  const sim = new Sim({ levelId: 1, viewW: 380, seed: 3 });
+  sim.flap();
+  sim.streak = 6;
+  sim.items = [{ type: 'heart', x: sim.dist + sim.miaX - 200, y: 100 }];
+  sim.step(1 / 120);
+  assert.equal(sim.streak, 0);
+  assert.ok(sim.events.some((e) => e.type === 'streakEnd'));
+});
+
 /* ---------- настройки ---------- */
 
+test('config.js: реплики Мии и фото к запискам указывают на существующие файлы', () => {
+  assert.ok(Array.isArray(CONFIG.miaLines), 'miaLines должен быть списком (можно пустым)');
+  for (const line of CONFIG.miaLines) assert.ok(typeof line === 'string' && line.trim() && line.length <= 44, `реплика не помещается в облачко: «${line}»`);
+  for (const [id, ph] of Object.entries(CONFIG.photos || {})) {
+    assert.ok(+id >= 1 && +id <= LEVELS.length, `фото привязано к несуществующему уровню ${id}`);
+    assert.ok(fs.existsSync(path.join(ROOT, `assets/img/gallery/${ph.file}-thumb.webp`)), `нет файла assets/img/gallery/${ph.file}-thumb.webp`);
+    assert.ok(ph.caption && ph.alt, `фото уровня ${id}: нужны подпись и описание`);
+  }
+});
+
 test('config.js: записка есть для каждого уровня, письмо — для последнего', () => {
-  for (let id = 1; id < LEVELS.length; id++) {
+  const letterLevels = new Set((CONFIG.letters || []).map((l) => l.level));
+  // после каждого уровня — записка, кроме финалов: там письмо
+  for (let id = 1; id <= LEVELS.length; id++) {
+    if (letterLevels.has(id)) continue;
     const note = CONFIG.notes.find((n) => n.level === id);
     assert.ok(note, `нет записки для уровня ${id}`);
     assert.ok(note.title.trim() && note.text.trim(), `пустая записка уровня ${id}`);
   }
-  assert.equal(CONFIG.finalLetter.level, LEVELS.length, 'письмо должно открываться после последнего уровня');
-  assert.ok(CONFIG.finalLetter.title.trim() && CONFIG.finalLetter.text.trim(), 'пустое письмо');
-  for (const n of CONFIG.notes) assert.ok(n.level >= 1 && n.level < LEVELS.length, `записка привязана к несуществующему уровню ${n.level}`);
+  assert.deepEqual([...letterLevels].sort((a, b) => a - b), [10, 20], 'письма открываются после 10-го и 20-го уровней');
+  for (const letter of CONFIG.letters) {
+    // у финала две ступени: записка от Мии, потом письмо создателя
+    assert.ok(letter.note && letter.note.title.trim() && letter.note.text.trim(), `у финала ${letter.level} нет записки Мии`);
+    assert.ok(letter.title.trim() && letter.text.trim(), `пустое письмо после уровня ${letter.level}`);
+    assert.ok(letter.level >= 1 && letter.level <= LEVELS.length, `письмо привязано к несуществующему уровню ${letter.level}`);
+  }
+  // записок ровно столько, сколько нефинальных уровней: 20 уровней → 18 записок + 2 письма
+  assert.equal(CONFIG.notes.length, LEVELS.length - CONFIG.letters.length, 'записок должно быть на два меньше, чем уровней');
+  for (const n of CONFIG.notes) assert.ok(n.level >= 1 && n.level <= LEVELS.length, `записка привязана к несуществующему уровню ${n.level}`);
+  assert.ok(!letterLevels.has(CONFIG.notes.find((n) => n.level === 10)?.level), 'для финала не должно быть записки, только письмо');
   assert.ok(CONFIG.her.name && CONFIG.her.sweet && CONFIG.her.dative && CONFIG.cat.name && CONFIG.from);
 });
 
@@ -190,16 +292,110 @@ test('в бесконечном режиме одна жизнь, уровень
   assert.equal(sim.finishX, null);
 });
 
-test('звёзды: 1 — долетела, 2 — 70% сердечек, 3 — ещё и без потерь', () => {
+test('звёзды: по одной за каждую цель — долетела, 70% сердечек, без потерь', () => {
   const sim = new Sim({ levelId: 1, viewW: 380, seed: 1 });
   sim.status = 'won';
   sim.heartsTotal = 10;
   sim.pathHearts = 6;
-  assert.equal(sim.stars(), 1);
+  assert.equal(sim.stars(), 2, 'долетела без потерь, но сердечек мало');
   sim.pathHearts = 7;
   assert.equal(sim.stars(), 3);
   sim.lostLives = 1;
-  assert.equal(sim.stars(), 2);
+  assert.equal(sim.stars(), 2, 'сердечки собраны, но жизнь потеряна');
+  sim.pathHearts = 6;
+  assert.equal(sim.stars(), 1, 'только долетела');
+});
+
+/* ---------- новые раунды ---------- */
+
+/** Прогоняет уровень автопилотом и считает, что в нём встретилось. */
+function watch(levelId, seed) {
+  const seen = { types: new Set(), events: new Set(), maxFrogY: 0, batSpan: 0, clearAt: null, sim: null, gateX: {}, emitterX: new Set(), cloudsOnly: true };
+  const sim = new Sim({ levelId, viewW: 380, seed });
+  seen.sim = sim;
+  sim.flap();
+  let i = 0;
+  let batMin = Infinity;
+  let batMax = -Infinity;
+  while (sim.status !== 'won' && sim.status !== 'lost' && sim.t < 300) {
+    if (i % 15 === 0) {
+      const wx = sim.dist + sim.miaX;
+      const g = sim.gates.find((x) => x.x + x.w > wx - WORLD.RADIUS);
+      if (sim.mia.y + sim.mia.vy * 0.07 > (g ? g.gapY + 22 : 330)) sim.flap();
+    }
+    sim.step(DT);
+    for (const ev of sim.events) {
+      seen.events.add(ev.type + (ev.kind ? ':' + ev.kind : ''));
+      if (ev.type === 'clear') seen.clearAt = sim.passed;
+    }
+    for (const h of sim.hazards) {
+      seen.types.add(h.type);
+      if (h.type === 'frog') seen.maxFrogY = Math.max(seen.maxFrogY, WORLD.GROUND - h.y);
+      if (h.type === 'bat') {
+        batMin = Math.min(batMin, h.y - h.y0);
+        batMax = Math.max(batMax, h.y - h.y0);
+      }
+    }
+    for (const g of sim.gates) seen.gateX[g.idx] = g.x;
+    for (const e of sim.emitters) {
+      seen.emitterX.add(e.x);
+      if (e.kind !== 'cloud') seen.cloudsOnly = false;
+    }
+    sim.events.length = 0;
+    i++;
+  }
+  seen.batSpan = batMax - batMin;
+  return seen;
+}
+const levelBy = (theme) => LEVELS.find((l) => l.theme === theme);
+
+test('под дождём: капли падают из тучек, во второй половине дождь кончается', () => {
+  const l = levelBy('rain');
+  const s = watch(l.id, 4242);
+  assert.ok(s.emitterX.size > 2 && s.cloudsOnly, 'капли падают только из тучек, и тучек больше двух');
+  assert.ok(s.types.has('drop'), 'за уровень не упало ни одной капли');
+  assert.ok(s.events.has('clear'), 'дождь не кончился');
+  assert.equal(s.clearAt, s.sim.calmGate, 'дождь кончается на отмеченных воротах');
+  assert.ok(s.sim.calmGate > l.gates * 0.4 && s.sim.calmGate < l.gates, 'дождь кончается во второй половине уровня');
+  assert.equal(s.sim.clear, 1, 'небо прояснилось полностью');
+  // после нужных ворот тучек больше нет
+  const calmX = s.gateX[s.sim.calmGate];
+  assert.ok(calmX > 0 && [...s.emitterX].every((x) => x < calmX), 'после дождя остались тучки');
+  assert.equal(new Sim({ levelId: 1, viewW: 380, seed: 1 }).calmGate, Infinity, 'в остальных уровнях «прояснения» нет');
+});
+
+test('лягушачий пруд: лягушонок предупреждает «ква», прыгает и возвращается на воду', () => {
+  const s = watch(levelBy('pond').id, 77);
+  assert.ok(s.types.has('frog'), 'нет ни одного лягушонка');
+  assert.ok(s.events.has('croak'), 'лягушонок не предупредил о прыжке');
+  assert.ok(s.events.has('splash:frog'), 'лягушонок не вернулся на воду');
+  assert.ok(s.maxFrogY > 180 && s.maxFrogY < 290, `высота прыжка ${Math.round(s.maxFrogY)} — должна быть ниже середины экрана`);
+});
+
+test('плюшевый совет: опасностей нет, клубок даёт два сердечка', () => {
+  const l = levelBy('plush');
+  assert.deepEqual(l.hazards, ['yarn'], 'в передышке только клубки');
+  const s = watch(l.id, 5);
+  assert.ok(s.types.has('yarn'), 'нет ни одного клубка');
+  assert.equal(s.sim.lostLives, 0, 'в передышке автопилот не должен терять жизни');
+  // клубок: +2 сердечка и событие «pop» с пометкой
+  const sim = new Sim({ levelId: l.id, viewW: 380, seed: 9 });
+  sim.flap();
+  sim.hazards.length = 0;
+  sim.hazards.push({ type: 'yarn', x: sim.dist + sim.miaX, y: sim.mia.y, y0: sim.mia.y, r: 20, vx: 0, phase: 0, hue: 1 });
+  const before = sim.hearts;
+  sim.step(DT);
+  assert.ok(sim.events.some((e) => e.type === 'pop' && e.kind === 'yarn'), 'нет события «клубок размотан»');
+  assert.equal(sim.hearts - before, 2);
+  assert.equal(sim.lives, 3, 'клубок не отнимает жизнь');
+  assert.equal(sim.hazards.length, 0, 'клубок исчезает');
+});
+
+test('поцелуй или кусь: летучая мышь прилетает после предупреждения и летит волной', () => {
+  const s = watch(levelBy('gothic').id, 31337);
+  assert.ok(s.events.has('warn:bat'), 'нет предупреждения о летучей мыши');
+  assert.ok(s.types.has('bat'), 'нет ни одной летучей мыши');
+  assert.ok(s.batSpan > 50 && s.batSpan <= 77, `размах волны ${Math.round(s.batSpan)}`);
 });
 
 /* ---------- сохранение ---------- */
@@ -210,12 +406,12 @@ test('сохранение: уровни открываются по очере�
   save.reset();
   assert.equal(save.isLevelOpen(1), true);
   assert.equal(save.isLevelOpen(2), false);
-  assert.equal(save.nextLevel(6), 1);
+  assert.equal(save.nextLevel(LEVELS.length), 1);
   assert.equal(save.completeLevel(1, 2, 20), true, 'первое прохождение');
   assert.equal(save.completeLevel(1, 1, 5), false, 'повторное прохождение');
   assert.equal(save.data.levels[1].stars, 2, 'лучший результат не затирается худшим');
   assert.equal(save.isLevelOpen(2), true);
-  assert.equal(save.nextLevel(6), 2);
+  assert.equal(save.nextLevel(LEVELS.length), 2);
   assert.deepEqual(save.data.notes, [1]);
   assert.equal(save.totalStars(), 2);
 });
@@ -273,6 +469,41 @@ const freshSave = async () => (await import(`../assets/js/storage.js?copy=${++co
   });
 }
 {
+  // Запись от версии с шестью уровнями: шестым был финал с письмом. Теперь финал — десятый.
+  const old = {};
+  for (let i = 1; i <= 6; i++) old[i] = { done: true, stars: i === 6 ? 2 : 3, hearts: 20 + i };
+  store.set('flappykitty.save.v1', JSON.stringify({ v: 1, hearts: 300, totalHearts: 450, best: 17, levels: old, notes: [1, 2, 3, 4, 5, 6], seenNotes: [1, 2, 6], skins: ['super', 'hood'], skin: 'hood', plays: 12 }));
+  const s = await freshSave();
+  test('старое сохранение (6 уровней): финал и письмо переезжают на № 10, раунды 6–9 ждут своей очереди', () => {
+    const d = s.data;
+    assert.deepEqual(d.levels[10], { done: true, stars: 2, hearts: 26 }, 'результат финала перенесён');
+    assert.equal(d.levels[6], undefined, 'новый шестой раунд ещё не пройден');
+    for (let i = 1; i <= 5; i++) assert.deepEqual(d.levels[i], { done: true, stars: 3, hearts: 20 + i }, `раунд ${i} не тронут`);
+    assert.deepEqual(d.notes, [1, 2, 3, 4, 5, 10], 'письмо осталось открытым');
+    assert.deepEqual(d.seenNotes, [1, 2, 10]);
+    assert.equal(d.hearts, 300);
+    assert.equal(d.best, 17);
+    assert.equal(d.skin, 'hood');
+    assert.equal(s.totalStars(), 17);
+    assert.equal(s.nextLevel(LEVELS.length), 6, 'следующий раунд — шестой');
+    assert.equal(s.isLevelOpen(6), true);
+    assert.equal(s.isLevelOpen(7), false, 'раунды открываются по очереди');
+    assert.equal(s.isLevelOpen(10), true, 'уже пройденный финал можно переиграть');
+    // перенос делается один раз: после записи новый шестой раунд остаётся шестым
+    s.completeLevel(6, 3, 30);
+    const raw = JSON.parse(store.get('flappykitty.save.v1'));
+    assert.equal(raw.rounds, 10);
+    assert.equal(raw.levels[6].stars, 3);
+  });
+  const again = await freshSave();
+  test('перенос старого сохранения не повторяется при следующем запуске', () => {
+    assert.deepEqual(again.data.levels[6], { done: true, stars: 3, hearts: 30 });
+    assert.deepEqual(again.data.levels[10], { done: true, stars: 2, hearts: 26 });
+    assert.deepEqual(again.data.notes, [1, 2, 3, 4, 5, 10, 6]);
+    assert.equal(again.isLevelOpen(7), true);
+  });
+}
+{
   const real = globalThis.localStorage;
   globalThis.localStorage = { getItem() { throw new Error('запрещено'); }, setItem() { throw new Error('запрещено'); } };
   const s = await freshSave();
@@ -283,6 +514,85 @@ const freshSave = async () => (await import(`../assets/js/storage.js?copy=${++co
     assert.equal(s.isLevelOpen(2), true);
   });
   globalThis.localStorage = real;
+}
+
+/* ---------- звук и музыка ---------- */
+
+{
+  // Ошибки, которые видно только в браузере: тема музыки, названная не так, как в audio.js,
+  // молча играла «по умолчанию» — второе письмо из-за этого осталось без своей мелодии.
+  const { Sound, unknownThemes } = await import('../assets/js/game/audio.js');
+  test('каждая тема игры есть в таблице музыки', () => {
+    const s = new Sound();
+    for (const k of Object.keys(THEMES)) s.setTheme(k);
+    s.setTheme('letter');
+    s.setTheme('email'); // музыка второго письма
+    assert.deepEqual([...unknownThemes], [], `незнакомые темы музыки: ${[...unknownThemes].join(', ')}`);
+  });
+  test('все звуки, которые зовёт игра, есть в audio.js', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'assets/js/game/audio.js'), 'utf8');
+    const defined = new Set([...src.matchAll(/case '([a-z0-9]+)':/g)].map((m) => m[1]));
+    const called = new Set();
+    for (const f of ['assets/js/game/main.js', 'assets/js/love.js', 'assets/js/site.js']) {
+      for (const m of fs.readFileSync(path.join(ROOT, f), 'utf8').matchAll(/\.play\('([a-z0-9]+)'/g)) called.add(m[1]);
+    }
+    const missing = [...called].filter((c) => !defined.has(c));
+    assert.deepEqual(missing, [], `звуки без ветки в audio.js: ${missing.join(', ')}`);
+  });
+}
+
+/* ---------- события симуляции ---------- */
+
+{
+  const { Sim } = await import('../assets/js/game/sim.js');
+  test('каждое событие симуляции кто-то обрабатывает', () => {
+    const simSrc = fs.readFileSync(path.join(ROOT, 'assets/js/game/sim.js'), 'utf8');
+    const mainSrc = fs.readFileSync(path.join(ROOT, 'assets/js/game/main.js'), 'utf8');
+    const emitted = new Set([...simSrc.matchAll(/this\.emit\('([A-Za-z0-9]+)'/g)].map((m) => m[1]));
+    const handled = new Set([...mainSrc.matchAll(/case '([A-Za-z0-9]+)':/g)].map((m) => m[1]));
+    // 'dying' — сигнал для отрисовки (пауза кадра), а не для экранов
+    const missing = [...emitted].filter((e) => !handled.has(e) && e !== 'dying');
+    assert.deepEqual(missing, [], `события без обработки в main.js: ${missing.join(', ')}`);
+  });
+  test('у каждого письма своя тема музыки, и она существует', () => {
+    const mainSrc = fs.readFileSync(path.join(ROOT, 'assets/js/game/main.js'), 'utf8');
+    const audioSrc = fs.readFileSync(path.join(ROOT, 'assets/js/game/game/audio.js'.replace('/game/game/', '/game/')), 'utf8');
+    const roots = audioSrc.slice(audioSrc.indexOf('const ROOTS'), audioSrc.indexOf('};', audioSrc.indexOf('const ROOTS')));
+    const known = new Set([...roots.matchAll(/([a-z]+):\s*-?\d/g)].map((m) => m[1]));
+    // Проверяем не только объявление letterTheme, но и место вызова: сломать можно и там.
+    // следующий function после openEnvelope — чтобы нарезка не зависела от порядка функций в файле
+    const start = mainSrc.indexOf('function openEnvelope');
+    assert.ok(start > 0, 'нет функции openEnvelope');
+    const after = mainSrc.slice(start + 10);
+    const next = after.search(/\n\s*(async )?function /);
+    const openEnv = next > 0 ? after.slice(0, next) : after;
+    const call = openEnv.match(/sound\.setTheme\(([^;]+)\)/);
+    assert.ok(call, 'конверт должен задавать тему музыки письма');
+    assert.match(call[1], /letterTheme\(/, 'тему письма выбирает letterTheme(), а не строка на месте');
+    const fn = mainSrc.slice(mainSrc.indexOf('function letterTheme'), mainSrc.indexOf('/** Наполняет листок'));
+    const names = [...fn.matchAll(/'([a-z0-9]+)'/g)].map((m) => m[1]);
+    assert.ok(names.length >= 2, 'в letterTheme должно быть по теме на каждое письмо');
+    for (const n of names) assert.ok(known.has(n), `тема письма «${n}» не описана в audio.js`);
+    // и у каждого письма тема своя, иначе у второго письма музыки не будет вовсе
+    assert.equal(new Set(names).size, names.length, 'у писем должны быть разные темы музыки');
+    assert.equal((CONFIG.letters || []).length, 2, 'писем должно быть два');
+  });
+  test('уровень с ветром предупреждает о нём до порыва', () => {
+    const windy = LEVELS.find((l) => (l.hazards || []).includes('wind'));
+    assert.ok(windy, 'нет уровня с ветром');
+    const sim = new Sim({ mode: 'story', levelId: windy.id, seed: 3 });
+    sim.status = 'playing';
+    const seen = new Set();
+    for (let i = 0; i < 120 * 40; i++) {
+      sim.flap();
+      sim.step(1 / 120);
+      for (const e of sim.events.splice(0)) {
+        seen.add(e.type);
+        if (e.type === 'wind') assert.ok(seen.has('windWarn'), 'порыв случился без предупреждения');
+      }
+    }
+    assert.ok(seen.has('windWarn'), 'ветер ни разу не предупредил о себе');
+  });
 }
 
 if (failures.length) {

@@ -3,8 +3,11 @@
 
 const KEY = 'flappykitty.save.v1';
 
+const ROUNDS = 10; // столько раундов в сюжете; до этого их было шесть
+
 const DEFAULTS = {
   v: 1,
+  rounds: ROUNDS, // для скольких раундов сделана запись (см. перенос старых записей в read)
   hearts: 0, // «кошелёк» сердечек — общая валюта вселенной
   totalHearts: 0, // сколько собрано за всё время
   best: 0, // рекорд бесконечного режима
@@ -49,6 +52,20 @@ function read() {
     }
   }
   const skins = Array.isArray(data.skins) ? data.skins.filter((x) => typeof x === 'string') : [];
+  let notes = ids(data.notes);
+  let seenNotes = ids(data.seenNotes);
+  // Запись осталась от версии с шестью раундами. Тогда шестым был финал — «Дорога к …» с письмом,
+  // теперь он десятый. Переносим его результат и открытое письмо на новый номер, чтобы ничего не пропало
+  // и чтобы новые раунды 6–9 не оказались «пройденными» сами собой. Раунды 1–5 остаются на своих местах.
+  if (raw && !(data.rounds >= ROUNDS)) {
+    if (levels[6]) {
+      levels[ROUNDS] = levels[6];
+      delete levels[6];
+    }
+    const move = (list) => Array.from(new Set(list.map((id) => (id === 6 ? ROUNDS : id))));
+    notes = move(notes);
+    seenNotes = move(seenNotes);
+  }
   cache = {
     ...data, // незнакомые поля сохраняем: их могут добавить будущие игры
     ...DEFAULTS,
@@ -56,8 +73,8 @@ function read() {
     totalHearts: count(data.totalHearts),
     best: count(data.best),
     levels,
-    notes: ids(data.notes),
-    seenNotes: ids(data.seenNotes),
+    notes,
+    seenNotes,
     skins: Array.from(new Set(['super', ...skins])),
     skin: typeof data.skin === 'string' ? data.skin : 'super',
     sound: data.sound !== false,
@@ -121,7 +138,10 @@ export const save = {
   },
   isLevelOpen(id) {
     if (id <= 1) return true;
-    const prev = read().levels[id - 1];
+    const levels = read().levels;
+    // уже пройденный уровень открыт всегда: у старых игроков финал пройден, а раунды перед ним — ещё нет
+    if (levels[id] && levels[id].done) return true;
+    const prev = levels[id - 1];
     return !!(prev && prev.done);
   },
   nextLevel(total) {
