@@ -1552,4 +1552,870 @@ export const THEMES = {
       ctx.stroke();
     },
   },
+  /* ============================================================
+     ГЛАВА 2. Десять новых миров (уровни 11–20)
+     ============================================================ */
+
+  /* ---------- 11. Чердак ---------- */
+  attic: {
+    name: 'Чердак',
+    ambient: 'dust',
+    hud: '#4A3A2A',
+    sky(ctx, W, VH) {
+      ctx.fillStyle = vgrad(ctx, 0, G, ['#5C4A38', '#7A6450', '#9C8368']);
+      ctx.fillRect(0, -90, W, VH + 90);
+      // свет из слухового окна
+      const g = ctx.createRadialGradient(W * 0.5, 150, 10, W * 0.5, 150, 420);
+      g.addColorStop(0, 'rgba(255,236,190,.5)');
+      g.addColorStop(1, 'rgba(255,236,190,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, -90, W, VH + 90);
+    },
+    far(ctx, W, scroll) {
+      // стропила
+      tile(W, scroll, 0.1, 260, (x) => {
+        ctx.strokeStyle = '#4B3B2C';
+        ctx.lineWidth = 14;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x + 130, G);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x + 260, 0);
+        ctx.lineTo(x + 130, G);
+        ctx.stroke();
+      }, 140);
+      // коробки и сундуки
+      tile(W, scroll, 0.42, 240, (x, i) => {
+        const bw = 60 + hash(i) * 40;
+        const bh = 50 + hash(i + 4) * 55;
+        const bx = x + 30;
+        const by = G - bh;
+        ctx.fillStyle = ['#B08A5E', '#9E7A50', '#C29A6A'][i % 3];
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.fillStyle = 'rgba(255,255,255,.22)';
+        ctx.fillRect(bx, by, bw, 6);
+        ctx.strokeStyle = 'rgba(70,50,30,.5)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx, by, bw, bh);
+        ctx.beginPath();
+        ctx.moveTo(bx + bw / 2, by);
+        ctx.lineTo(bx + bw / 2, by + bh);
+        ctx.stroke();
+      }, 120);
+    },
+    ground(ctx, W, VH, scroll) {
+      ctx.fillStyle = '#6B563F';
+      ctx.fillRect(0, G, W, VH - G);
+      ctx.fillStyle = '#8A7050';
+      for (let i = 0; i < 8; i++) ctx.fillRect(i * (W / 8), G, 2, VH - G);
+      ctx.fillStyle = 'rgba(255,240,210,.35)';
+      ctx.fillRect(0, G, W, 4);
+    },
+    column(ctx, x, y, w, h, capAt, seed) {
+      // стопка старых книг и коробок
+      ctx.fillStyle = hgrad(ctx, x, x + w, ['#8A6B47', '#B08A5E', '#7A5C3C']);
+      ctx.fillRect(x + 3, y, w - 6, h);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x + 3, y, w - 6, h);
+      ctx.clip();
+      const start = Math.floor(y / 42) * 42 - 42;
+      for (let yy = start; yy < y + h + 42; yy += 42) {
+        const col = ['#C9A063', '#9E7A50', '#D8B47A', '#8C6A44'][Math.floor(hash(yy + seed) * 4)];
+        ctx.fillStyle = col;
+        ctx.fillRect(x + 6, yy, w - 12, 34);
+        ctx.fillStyle = 'rgba(255,255,255,.25)';
+        ctx.fillRect(x + 6, yy, w - 12, 4);
+        ctx.fillStyle = 'rgba(60,40,20,.35)';
+        ctx.fillRect(x + 10, yy + 14, w - 20, 3);
+      }
+      ctx.restore();
+      colOutline(ctx, x + 3, y, w - 6, h, '#5C4529');
+      if (capAt === 'top') {
+        ctx.fillStyle = '#6B563F';
+        rr(ctx, x - 4, y + h - 14, w + 8, 14, 4);
+        ctx.fill();
+        colOutline(ctx, x - 4, y + h - 14, w + 8, 14, '#4B3B2C', 2);
+      } else {
+        ctx.fillStyle = '#C9A063';
+        rr(ctx, x - 5, y - 4, w + 10, 16, 5);
+        ctx.fill();
+        colOutline(ctx, x - 5, y - 4, w + 10, 16, '#5C4529', 2);
+      }
+    },
+  },
+
+  /* ---------- 12. Робот-пылесос ---------- */
+  vacuum: {
+    name: 'Робот-пылесос',
+    ambient: 'dust',
+    hud: '#2B3A4A',
+    sky(ctx, W, VH) {
+      ctx.fillStyle = vgrad(ctx, 0, G, ['#DCE9F2', '#EAF3F8', '#F6FAFC']);
+      ctx.fillRect(0, -90, W, VH + 90);
+    },
+    far(ctx, W, scroll) {
+      // пол и плинтус, вид сбоку на уровне кошачьих глаз
+      tile(W, scroll, 0.16, 380, (x) => {
+        ctx.fillStyle = 'rgba(180,200,215,.5)';
+        rr(ctx, x + 60, 200, 220, 150, 12);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.75)';
+        rr(ctx, x + 72, 212, 196, 126, 8);
+        ctx.fill();
+      }, 160);
+      // ножки стула
+      tile(W, scroll, 0.4, 300, (x, i) => {
+        ctx.fillStyle = '#A8B6C2';
+        ctx.fillRect(x + 40, G - 150, 12, 150);
+        ctx.fillRect(x + 150, G - 150, 12, 150);
+        ctx.fillRect(x + 40, G - 156, 122, 10);
+      }, 120);
+      ctx.fillStyle = 'rgba(200,215,228,.6)';
+      ctx.fillRect(0, G - 24, W, 24);
+    },
+    ground(ctx, W, VH, scroll) {
+      ctx.fillStyle = '#B8C6D2';
+      ctx.fillRect(0, G, W, VH - G);
+      tile(W, scroll, 1, 90, (x) => {
+        ctx.strokeStyle = 'rgba(255,255,255,.55)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 6, G + 10, 70, VH - G - 20);
+      }, 40);
+    },
+    column(ctx, x, y, w, h, capAt, seed) {
+      // металлическая стойка
+      ctx.fillStyle = hgrad(ctx, x, x + w, ['#8FA2B2', '#D6E2EB', '#A8B8C6', '#7E92A2']);
+      ctx.fillRect(x + 5, y, w - 10, h);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x + 5, y, w - 10, h);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(90,110,130,.18)';
+      for (let yy = Math.floor(y / 26) * 26 - 26; yy < y + h + 26; yy += 26) {
+        ctx.fillRect(x + 5, yy, w - 10, 3);
+      }
+      ctx.fillStyle = 'rgba(255,255,255,.45)';
+      ctx.fillRect(x + 12, y, 6, h);
+      ctx.restore();
+      colOutline(ctx, x + 5, y, w - 10, h, '#5E7385');
+      if (capAt === 'top') {
+        ctx.fillStyle = '#6E8496';
+        rr(ctx, x - 4, y - 6, w + 8, 18, 8);
+        ctx.fill();
+        ctx.fillStyle = '#7FE0A8';
+        ctx.beginPath();
+        ctx.arc(x + w / 2, y + 3, 3, 0, TAU);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#6E8496';
+        rr(ctx, x - 4, y + h - 10, w + 8, 16, 6);
+        ctx.fill();
+        ctx.fillStyle = '#F3B33D';
+        ctx.beginPath();
+        ctx.arc(x + w / 2, y + h - 2, 3, 0, TAU);
+        ctx.fill();
+      }
+    },
+  },
+
+  /* ---------- 13. Корзинка с нитками ---------- */
+  yarn: {
+    name: 'Корзинка с нитками',
+    ambient: 'dust',
+    hud: '#5A3A2E',
+    sky(ctx, W, VH) {
+      ctx.fillStyle = vgrad(ctx, 0, G, ['#FFF6EC', '#FDECDC', '#F9DFC9']);
+      ctx.fillRect(0, -90, W, VH + 90);
+    },
+    far(ctx, W, scroll) {
+      // плетёная корзинка на заднем плане
+      tile(W, scroll, 0.12, 420, (x, i) => {
+        const bx = x + 90;
+        const bw = 240;
+        const bh = 130;
+        ctx.fillStyle = '#D8A661';
+        rr(ctx, bx, G - bh, bw, bh, 18);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(150,100,50,.45)';
+        ctx.lineWidth = 3;
+        for (let k = 1; k < 5; k++) {
+          ctx.beginPath();
+          ctx.moveTo(bx, G - bh + k * (bh / 5));
+          ctx.lineTo(bx + bw, G - bh + k * (bh / 5));
+          ctx.stroke();
+        }
+        for (let k = 1; k < 8; k++) {
+          ctx.beginPath();
+          ctx.moveTo(bx + k * (bw / 8), G - bh);
+          ctx.lineTo(bx + k * (bw / 8), G);
+          ctx.stroke();
+        }
+      }, 160);
+      // клубки
+      tile(W, scroll, 0.4, 200, (x, i) => {
+        const cx = x + 60;
+        const cy = G - 34 - hash(i) * 26;
+        const r = 22 + hash(i + 5) * 12;
+        ctx.fillStyle = ['#F58CA5', '#9CC79A', '#C9A7E8', '#F4C97B'][i % 4];
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, TAU);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,.6)';
+        ctx.lineWidth = 2;
+        for (let k = 0; k < 3; k++) {
+          ctx.beginPath();
+          ctx.arc(cx, cy, r * (0.4 + k * 0.25), 0.6, 4.2);
+          ctx.stroke();
+        }
+      }, 90);
+    },
+    ground(ctx, W, VH, scroll) {
+      ctx.fillStyle = '#E8C99B';
+      ctx.fillRect(0, G, W, VH - G);
+      ctx.strokeStyle = 'rgba(180,130,70,.4)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 14; i++) {
+        const x = i * (W / 14) + (scroll % (W / 14));
+        ctx.beginPath();
+        ctx.moveTo(x, G);
+        ctx.lineTo(x + 14, VH);
+        ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(255,255,255,.4)';
+      ctx.fillRect(0, G, W, 4);
+    },
+    column(ctx, x, y, w, h, capAt, seed) {
+      // натянутые нити
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+      const cols = ['#F58CA5', '#9CC79A', '#C9A7E8', '#F4C97B', '#8FC7E8'];
+      for (let k = 0; k < 9; k++) {
+        ctx.strokeStyle = cols[(k + Math.floor(seed)) % cols.length];
+        ctx.lineWidth = 5;
+        const off = (k / 9) * w;
+        ctx.beginPath();
+        ctx.moveTo(x + off, y);
+        ctx.lineTo(x + off + 6, y + h);
+        ctx.stroke();
+      }
+      ctx.restore();
+      colOutline(ctx, x, y, w, h, '#B0784A');
+      if (capAt === 'top') {
+        ctx.fillStyle = '#8FD17F';
+        ctx.beginPath();
+        ctx.arc(x + w / 2, y + 6, 13, 0, TAU);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,.7)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(x + w / 2, y + 6, 7, 0.4, 3.9);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = '#F58CA5';
+        ctx.beginPath();
+        ctx.arc(x + w / 2, y + h - 6, 13, 0, TAU);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,.7)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(x + w / 2, y + h - 6, 7, 0.4, 3.9);
+        ctx.stroke();
+      }
+    },
+  },
+
+  /* ---------- 14. Ванная ---------- */
+  bath: {
+    name: 'Ванная',
+    ambient: 'steam',
+    hud: '#1F4E5F',
+    sky(ctx, W, VH) {
+      ctx.fillStyle = vgrad(ctx, 0, G, ['#D6F0F7', '#E9F8FB', '#F7FEFF']);
+      ctx.fillRect(0, -90, W, VH + 90);
+    },
+    far(ctx, W, scroll) {
+      // кафель
+      tile(W, scroll, 0.12, 96, (x, i) => {
+        for (let r = 0; r < 6; r++) {
+          ctx.fillStyle = (r + i) % 2 ? 'rgba(255,255,255,.55)' : 'rgba(190,230,240,.55)';
+          ctx.fillRect(x, 120 + r * 88, 94, 86);
+        }
+      }, 60);
+      // кран и труба
+      tile(W, scroll, 0.4, 340, (x) => {
+        ctx.strokeStyle = '#9FB8C2';
+        ctx.lineWidth = 12;
+        ctx.beginPath();
+        ctx.moveTo(x + 40, 0);
+        ctx.lineTo(x + 40, 150);
+        ctx.lineTo(x + 110, 150);
+        ctx.lineTo(x + 110, 200);
+        ctx.stroke();
+        ctx.fillStyle = '#8AA6B2';
+        rr(ctx, x + 96, 190, 28, 16, 4);
+        ctx.fill();
+      }, 140);
+    },
+    ground(ctx, W, VH, scroll) {
+      ctx.fillStyle = '#C8E4EC';
+      ctx.fillRect(0, G, W, VH - G);
+      tile(W, scroll, 1, 80, (x) => {
+        ctx.strokeStyle = 'rgba(255,255,255,.7)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 4, G + 8, 70, VH - G - 16);
+      }, 40);
+    },
+    column(ctx, x, y, w, h, capAt, seed) {
+      // колонна из бутылочек и стаканчиков
+      ctx.fillStyle = hgrad(ctx, x, x + w, ['#B9E4F0', '#EAFBFF', '#B0DCEA']);
+      ctx.fillRect(x + 6, y, w - 12, h);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x + 6, y, w - 12, h);
+      ctx.clip();
+      for (let k = 0; k < 5; k++) {
+        ctx.fillStyle = ['#F7A8C4', '#8FD3F4', '#C9A7E8', '#F4C97B', '#9CC79A'][(k + Math.floor(seed)) % 5];
+        const by = y + h - (k + 1) * (h / 5);
+        rr(ctx, x + 10, by + 4, w - 20, h / 5 - 8, 6);
+        ctx.fill();
+      }
+      ctx.restore();
+      colOutline(ctx, x + 6, y, w - 12, h, '#6FA9BB');
+      if (capAt === 'top') {
+        ctx.fillStyle = 'rgba(255,255,255,.95)';
+        for (let k = 0; k < 3; k++) {
+          ctx.beginPath();
+          ctx.arc(x - 2 + k * ((w + 4) / 2), y + 2, 10 + k * 2, 0, TAU);
+          ctx.fill();
+        }
+      } else {
+        ctx.fillStyle = '#7FC9DE';
+        ctx.beginPath();
+        ctx.moveTo(x + w / 2, y + h + 10);
+        ctx.quadraticCurveTo(x + w / 2 + 10, y + h - 6, x + w / 2, y + h - 6);
+        ctx.quadraticCurveTo(x + w / 2 - 10, y + h - 6, x + w / 2, y + h + 10);
+        ctx.fill();
+      }
+    },
+  },
+
+  /* ---------- 15. Двор ---------- */
+  street: {
+    name: 'Двор',
+    ambient: 'pollen',
+    hud: '#2F4A2A',
+    sky(ctx, W, VH) {
+      ctx.fillStyle = vgrad(ctx, 0, G, ['#CDEBFB', '#E4F4FE', '#F6FDFF']);
+      ctx.fillRect(0, -90, W, VH + 90);
+    },
+    far(ctx, W, scroll) {
+      // дома
+      tile(W, scroll, 0.09, 220, (x, i) => {
+        const bh = 190 + hash(i) * 130;
+        const bw = 150;
+        ctx.fillStyle = ['#E7D3C4', '#D8C6D8', '#CFE0D4', '#E9DCC3'][i % 4];
+        ctx.fillRect(x + 20, G - bh, bw, bh);
+        ctx.fillStyle = 'rgba(255,255,255,.5)';
+        for (let r = 0; r < Math.floor(bh / 48); r++) {
+          for (let c = 0; c < 3; c++) {
+            ctx.fillRect(x + 36 + c * 44, G - bh + 26 + r * 48, 26, 24);
+          }
+        }
+        ctx.fillStyle = '#B9826A';
+        rr(ctx, x + 10, G - bh - 16, bw + 20, 20, 6);
+        ctx.fill();
+      }, 80);
+      // деревья
+      tile(W, scroll, 0.3, 260, (x, i) => {
+        ctx.fillStyle = '#8A6A48';
+        ctx.fillRect(x + 60, G - 120, 12, 120);
+        ctx.fillStyle = '#7FB77E';
+        ctx.beginPath();
+        ctx.arc(x + 66, G - 146, 52, 0, TAU);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x + 34, G - 120, 34, 0, TAU);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x + 98, G - 122, 32, 0, TAU);
+        ctx.fill();
+      }, 110);
+    },
+    ground(ctx, W, VH, scroll) {
+      ctx.fillStyle = '#9CB88F';
+      ctx.fillRect(0, G, W, VH - G);
+      ctx.fillStyle = '#B7CFA8';
+      ctx.fillRect(0, G, W, 6);
+      tile(W, scroll, 1, 150, (x, i) => {
+        ctx.fillStyle = 'rgba(120,150,110,.4)';
+        ctx.beginPath();
+        ctx.ellipse(x + 60, G + 26 + hash(i) * 18, 26, 6, 0, 0, TAU);
+        ctx.fill();
+      }, 60);
+    },
+    column(ctx, x, y, w, h, capAt, seed) {
+      // ствол дерева с листвой
+      ctx.fillStyle = hgrad(ctx, x, x + w, ['#8A6A48', '#B08A5E', '#8A6A48']);
+      ctx.fillRect(x + 8, y, w - 16, h);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x + 8, y, w - 16, h);
+      ctx.clip();
+      ctx.strokeStyle = 'rgba(90,60,35,.35)';
+      ctx.lineWidth = 3;
+      for (let k = 0; k < 14; k++) {
+        const yy = y + hash(seed + k) * h;
+        ctx.beginPath();
+        ctx.moveTo(x + 8, yy);
+        ctx.lineTo(x + w - 8, yy + 8);
+        ctx.stroke();
+      }
+      ctx.restore();
+      colOutline(ctx, x + 8, y, w - 16, h, '#5E4630');
+      if (capAt === 'top') {
+        ctx.fillStyle = '#7FB77E';
+        ctx.beginPath();
+        ctx.arc(x + w / 2, y - 4, 30, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = '#96C994';
+        ctx.beginPath();
+        ctx.arc(x + w / 2 - 12, y + 8, 20, 0, TAU);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#6E5A42';
+        ctx.beginPath();
+        ctx.ellipse(x + w / 2, y + h, w / 2 + 4, 10, 0, 0, TAU);
+        ctx.fill();
+      }
+    },
+  },
+
+  /* ---------- 16. Пекарня ---------- */
+  bakery: {
+    name: 'Пекарня',
+    ambient: 'dust',
+    hud: '#5A3A1E',
+    sky(ctx, W, VH) {
+      ctx.fillStyle = vgrad(ctx, 0, G, ['#FFF1DC', '#FBE3C4', '#F6D6AE']);
+      ctx.fillRect(0, -90, W, VH + 90);
+    },
+    far(ctx, W, scroll) {
+      // полки с булками
+      tile(W, scroll, 0.13, 300, (x, i) => {
+        for (let r = 0; r < 3; r++) {
+          const sy = 190 + r * 110;
+          ctx.fillStyle = '#C99B62';
+          ctx.fillRect(x + 20, sy + 40, 260, 10);
+          for (let k = 0; k < 6; k++) {
+            ctx.fillStyle = ['#E8B96F', '#DDA95C', '#F0C98A'][(k + r) % 3];
+            ctx.beginPath();
+            ctx.ellipse(x + 42 + k * 42, sy + 30, 16, 11, 0, 0, TAU);
+            ctx.fill();
+          }
+        }
+      }, 120);
+      ctx.fillStyle = 'rgba(210,160,100,.35)';
+      ctx.fillRect(0, G - 240, W, 6);
+    },
+    ground(ctx, W, VH, scroll) {
+      ctx.fillStyle = '#D9AE79';
+      ctx.fillRect(0, G, W, VH - G);
+      tile(W, scroll, 1, 70, (x) => {
+        ctx.strokeStyle = 'rgba(150,100,50,.3)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 3, G + 8, 64, VH - G - 16);
+      }, 35);
+    },
+    column(ctx, x, y, w, h, capAt, seed) {
+      // слоёный пирог
+      ctx.fillStyle = hgrad(ctx, x, x + w, ['#E0B074', '#F5D9A8', '#D8A45E']);
+      ctx.fillRect(x + 4, y, w - 8, h);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x + 4, y, w - 8, h);
+      ctx.clip();
+      for (let yy = Math.floor(y / 34) * 34; yy < y + h + 34; yy += 34) {
+        ctx.fillStyle = 'rgba(255,255,255,.35)';
+        ctx.fillRect(x + 4, yy, w - 8, 5);
+        ctx.fillStyle = 'rgba(170,110,50,.2)';
+        ctx.fillRect(x + 4, yy + 5, w - 8, 3);
+      }
+      ctx.restore();
+      colOutline(ctx, x + 4, y, w - 8, h, '#A9702F');
+      if (capAt === 'top') {
+        ctx.fillStyle = '#FFF7E6';
+        ctx.beginPath();
+        ctx.arc(x + w / 2, y + 2, 20, Math.PI, TAU);
+        ctx.fill();
+        ctx.fillStyle = '#E8B96F';
+        for (let k = 0; k < 3; k++) {
+          ctx.beginPath();
+          ctx.arc(x + w / 2 - 10 + k * 10, y - 2, 4, 0, TAU);
+          ctx.fill();
+        }
+      } else {
+        ctx.fillStyle = '#C98B3E';
+        rr(ctx, x - 2, y + h - 12, w + 4, 14, 5);
+        ctx.fill();
+      }
+    },
+  },
+
+  /* ---------- 17. Ящик с игрушками ---------- */
+  toybox: {
+    name: 'Ящик с игрушками',
+    ambient: 'confetti',
+    hud: '#3A2A5A',
+    sky(ctx, W, VH) {
+      ctx.fillStyle = vgrad(ctx, 0, G, ['#E4DEF7', '#EFEAFB', '#F8F5FF']);
+      ctx.fillRect(0, -90, W, VH + 90);
+    },
+    far(ctx, W, scroll) {
+      // кубики с буквами
+      tile(W, scroll, 0.12, 260, (x, i) => {
+        const bx = x + 40;
+        const by = G - 150 - hash(i) * 60;
+        ctx.fillStyle = ['#F58CA5', '#8FC7E8', '#F4C97B', '#9CC79A'][i % 4];
+        rr(ctx, bx, by, 64, 64, 8);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.85)';
+        ctx.font = 'bold 30px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('МЯУ'[i % 3], bx + 32, by + 34);
+      }, 110);
+      // мячики
+      tile(W, scroll, 0.35, 190, (x, i) => {
+        const cy = G - 24 - hash(i + 3) * 18;
+        ctx.fillStyle = ['#F58CA5', '#8FD3F4', '#C9A7E8'][i % 3];
+        ctx.beginPath();
+        ctx.arc(x + 50, cy, 20, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.7)';
+        ctx.beginPath();
+        ctx.arc(x + 44, cy - 6, 6, 0, TAU);
+        ctx.fill();
+      }, 90);
+    },
+    ground(ctx, W, VH, scroll) {
+      ctx.fillStyle = '#C6B8E6';
+      ctx.fillRect(0, G, W, VH - G);
+      tile(W, scroll, 1, 100, (x, i) => {
+        ctx.fillStyle = 'rgba(255,255,255,.5)';
+        ctx.beginPath();
+        ctx.arc(x + 50, G + 30, 6, 0, TAU);
+        ctx.fill();
+      }, 50);
+    },
+    column(ctx, x, y, w, h, capAt, seed) {
+      // башня из кубиков
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+      const size = 40;
+      for (let yy = Math.floor(y / size) * size; yy < y + h + size; yy += size) {
+        for (let k = 0; k < Math.ceil(w / size); k++) {
+          ctx.fillStyle = ['#F58CA5', '#8FC7E8', '#F4C97B', '#9CC79A', '#C9A7E8'][Math.floor(hash(seed + yy + k * 7) * 5)];
+          rr(ctx, x + k * size + 2, yy + 2, size - 4, size - 4, 5);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+      colOutline(ctx, x, y, w, h, '#7A6AA5');
+      if (capAt === 'top') {
+        ctx.fillStyle = '#F4C97B';
+        ctx.beginPath();
+        ctx.moveTo(x + w / 2, y - 16);
+        ctx.lineTo(x + w / 2 + 16, y + 4);
+        ctx.lineTo(x + w / 2 - 16, y + 4);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#8FD3F4';
+        rr(ctx, x - 3, y + h - 10, w + 6, 12, 5);
+        ctx.fill();
+      }
+    },
+  },
+
+  /* ---------- 18. Камин ---------- */
+  fireplace: {
+    name: 'Камин',
+    ambient: 'embers',
+    hud: '#FFE3C8',
+    dark: true,
+    sky(ctx, W, VH) {
+      ctx.fillStyle = vgrad(ctx, 0, G, ['#3A241C', '#5E3226', '#8A4630']);
+      ctx.fillRect(0, -90, W, VH + 90);
+      // отсвет огня снизу
+      const g = ctx.createRadialGradient(W * 0.5, G + 40, 20, W * 0.5, G + 40, 460);
+      g.addColorStop(0, 'rgba(255,170,80,.45)');
+      g.addColorStop(1, 'rgba(255,170,80,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, -90, W, VH + 90);
+    },
+    far(ctx, W, scroll) {
+      // кирпичная кладка
+      tile(W, scroll, 0.1, 120, (x, i) => {
+        for (let r = 0; r < 7; r++) {
+          for (let c = 0; c < 2; c++) {
+            const off = r % 2 ? 30 : 0;
+            ctx.fillStyle = (r + c + i) % 3 ? 'rgba(140,70,50,.55)' : 'rgba(160,85,60,.55)';
+            ctx.fillRect(x + c * 60 + off, 140 + r * 62, 56, 58);
+          }
+        }
+      }, 60);
+      // языки пламени у пола
+      tile(W, scroll, 0.34, 180, (x, i) => {
+        const fx = x + 60;
+        const fh = 60 + hash(i) * 50;
+        ctx.fillStyle = 'rgba(255,150,60,.5)';
+        ctx.beginPath();
+        ctx.moveTo(fx - 26, G);
+        ctx.quadraticCurveTo(fx - 14, G - fh * 0.6, fx, G - fh);
+        ctx.quadraticCurveTo(fx + 14, G - fh * 0.6, fx + 26, G);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,220,120,.5)';
+        ctx.beginPath();
+        ctx.moveTo(fx - 12, G);
+        ctx.quadraticCurveTo(fx - 6, G - fh * 0.5, fx, G - fh * 0.7);
+        ctx.quadraticCurveTo(fx + 6, G - fh * 0.5, fx + 12, G);
+        ctx.fill();
+      }, 80);
+    },
+    ground(ctx, W, VH, scroll) {
+      ctx.fillStyle = '#4A2E20';
+      ctx.fillRect(0, G, W, VH - G);
+      ctx.fillStyle = 'rgba(255,160,70,.35)';
+      ctx.fillRect(0, G, W, 5);
+    },
+    column(ctx, x, y, w, h, capAt, seed) {
+      // кирпичная колонна
+      ctx.fillStyle = '#8A4630';
+      ctx.fillRect(x + 4, y, w - 8, h);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x + 4, y, w - 8, h);
+      ctx.clip();
+      const bh = 34;
+      for (let yy = Math.floor(y / bh) * bh; yy < y + h + bh; yy += bh) {
+        const row = Math.round(yy / bh);
+        const off = row % 2 ? 0 : (w - 8) / 4;
+        for (let k = -1; k < 4; k++) {
+          ctx.fillStyle = ['#A85A3C', '#94503000', '#B06444'][0];
+          ctx.fillStyle = (k + row) % 2 ? '#A85A3C' : '#96503A';
+          ctx.fillRect(x + 4 + k * ((w - 8) / 2) + off, yy + 2, (w - 8) / 2 - 4, bh - 4);
+        }
+      }
+      ctx.restore();
+      colOutline(ctx, x + 4, y, w - 8, h, '#5A2E1E');
+      if (capAt === 'top') {
+        ctx.fillStyle = '#5A2E1E';
+        rr(ctx, x - 5, y - 6, w + 10, 16, 4);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,170,80,.8)';
+        ctx.fillRect(x - 5, y + 8, w + 10, 3);
+      } else {
+        ctx.fillStyle = '#5A2E1E';
+        rr(ctx, x - 5, y + h - 10, w + 10, 16, 4);
+        ctx.fill();
+      }
+    },
+  },
+
+  /* ---------- 19. Гроза ---------- */
+  storm: {
+    name: 'Гроза',
+    ambient: 'rain',
+    hud: '#E8EEF8',
+    dark: true,
+    sky(ctx, W, VH) {
+      ctx.fillStyle = vgrad(ctx, 0, G, ['#2B3550', '#3E4A66', '#5A6485']);
+      ctx.fillRect(0, -90, W, VH + 90);
+      // просвет между тучами
+      const g = ctx.createRadialGradient(W * 0.66, 200, 20, W * 0.66, 200, 340);
+      g.addColorStop(0, 'rgba(180,200,235,.35)');
+      g.addColorStop(1, 'rgba(180,200,235,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, -90, W, VH + 90);
+    },
+    far(ctx, W, scroll) {
+      // тяжёлые тучи
+      tile(W, scroll, 0.08, 300, (x, i) => {
+        ctx.fillStyle = 'rgba(40,50,75,.65)';
+        for (let k = 0; k < 4; k++) {
+          ctx.beginPath();
+          ctx.arc(x + 50 + k * 62, 90 + hash(i + k) * 50, 55 + hash(i + k * 3) * 30, 0, TAU);
+          ctx.fill();
+        }
+      }, 150);
+      // силуэты домов
+      tile(W, scroll, 0.22, 200, (x, i) => {
+        const bh = 140 + hash(i) * 120;
+        ctx.fillStyle = 'rgba(35,42,62,.8)';
+        ctx.fillRect(x + 30, G - bh, 130, bh);
+        ctx.fillStyle = 'rgba(255,220,140,.5)';
+        for (let r = 0; r < Math.floor(bh / 50); r++) {
+          if (hash(i + r * 5) > 0.45) ctx.fillRect(x + 50, G - bh + 20 + r * 50, 22, 20);
+        }
+      }, 90);
+    },
+    ground(ctx, W, VH, scroll) {
+      ctx.fillStyle = '#2A3244';
+      ctx.fillRect(0, G, W, VH - G);
+      tile(W, scroll, 1, 120, (x, i) => {
+        ctx.strokeStyle = 'rgba(180,210,255,.3)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(x + 60, G + 28, 34, 6, 0, 0, TAU);
+        ctx.stroke();
+      }, 60);
+    },
+    column(ctx, x, y, w, h, capAt, seed) {
+      // мокрый камень
+      ctx.fillStyle = hgrad(ctx, x, x + w, ['#4A5570', '#6E7A96', '#47516A']);
+      ctx.fillRect(x + 4, y, w - 8, h);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x + 4, y, w - 8, h);
+      ctx.clip();
+      for (let k = 0; k < 18; k++) {
+        const yy = y + hash(seed + k * 3.1) * h;
+        const ww = 10 + hash(seed + k) * 30;
+        ctx.fillStyle = 'rgba(255,255,255,.12)';
+        ctx.fillRect(x + 6 + hash(seed + k * 7) * (w - 20), yy, ww, 3);
+      }
+      ctx.restore();
+      colOutline(ctx, x + 4, y, w - 8, h, '#222A3C');
+      if (capAt === 'top') {
+        ctx.fillStyle = '#2A3244';
+        rr(ctx, x - 5, y - 8, w + 10, 18, 5);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(200,225,255,.85)';
+        ctx.beginPath();
+        ctx.moveTo(x + w / 2, y + 10);
+        ctx.lineTo(x + w / 2 + 7, y + 22);
+        ctx.lineTo(x + w / 2 - 4, y + 22);
+        ctx.lineTo(x + w / 2 + 4, y + 34);
+        ctx.lineTo(x + w / 2 - 7, y + 20);
+        ctx.lineTo(x + w / 2 + 2, y + 20);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#2A3244';
+        rr(ctx, x - 5, y + h - 10, w + 10, 18, 5);
+        ctx.fill();
+      }
+    },
+  },
+
+  /* ---------- 20. Дорога к Насте · рассвет ---------- */
+  dawn: {
+    name: 'Дорога к Насте · рассвет',
+    ambient: 'hearts',
+    hud: '#FFF3EA',
+    dark: true,
+    sky(ctx, W, VH) {
+      ctx.fillStyle = vgrad(ctx, 0, G, ['#3E4E7A', '#8A6FA8', '#D98BA0', '#FFB68A', '#FFE0B0']);
+      ctx.fillRect(0, -90, W, VH + 90);
+      // встающее солнце
+      const sx = W * 0.62;
+      const sy = G - 40;
+      const g = ctx.createRadialGradient(sx, sy, 20, sx, sy, 360);
+      g.addColorStop(0, 'rgba(255,240,200,.85)');
+      g.addColorStop(1, 'rgba(255,240,200,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(sx - 360, sy - 360, 720, 720);
+      ctx.fillStyle = '#FFF6DC';
+      ctx.beginPath();
+      ctx.arc(sx, sy, 104, 0, TAU);
+      ctx.fill();
+    },
+    far(ctx, W, scroll) {
+      tile(W, scroll, 0.07, 400, (x, i) => {
+        cloudHeart(ctx, x + 120, 140 + hash(i) * 130, 40 + hash(i + 3) * 22, 'rgba(255,255,255,.4)');
+        cloudHeart(ctx, x + 320, 290 + hash(i + 5) * 110, 24 + hash(i + 8) * 16, 'rgba(255,225,235,.45)');
+      }, 180);
+      const hills = (factor, color, base, amp, period) => {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(0, G);
+        for (let x = 0; x <= W + 20; x += 20) {
+          const wx = x + scroll * factor;
+          ctx.lineTo(x, G - base - Math.sin(wx / period) * amp - Math.sin(wx / (period * 0.39) + 1) * amp * 0.3);
+        }
+        ctx.lineTo(W, G);
+        ctx.fill();
+      };
+      hills(0.1, 'rgba(255,205,200,.5)', 150, 40, 240);
+      hills(0.2, 'rgba(255,180,190,.6)', 90, 30, 170);
+      // белые розы по пути
+      tile(W, scroll, 0.3, 240, (x, i) => {
+        const rx = x + 80;
+        const ry = G - 30 - hash(i) * 40;
+        ctx.fillStyle = '#FFFFFF';
+        for (let k = 0; k < 5; k++) {
+          const a = (k / 5) * TAU;
+          ctx.beginPath();
+          ctx.ellipse(rx + Math.cos(a) * 9, ry + Math.sin(a) * 9, 9, 7, a, 0, TAU);
+          ctx.fill();
+        }
+        ctx.fillStyle = '#F7C6D2';
+        ctx.beginPath();
+        ctx.arc(rx, ry, 6, 0, TAU);
+        ctx.fill();
+      }, 100);
+    },
+    ground(ctx, W, VH, scroll) {
+      ctx.fillStyle = '#8A5A6A';
+      ctx.fillRect(0, G, W, VH - G);
+      ctx.fillStyle = 'rgba(255,220,200,.5)';
+      ctx.fillRect(0, G, W, 6);
+      tile(W, scroll, 1, 110, (x, i) => {
+        ctx.fillStyle = 'rgba(255,235,230,.35)';
+        ctx.beginPath();
+        ctx.ellipse(x + 55, G + 26 + hash(i) * 14, 22, 5, 0, 0, TAU);
+        ctx.fill();
+      }, 55);
+    },
+    column(ctx, x, y, w, h, capAt, seed) {
+      // сияющая колонна из лепестков
+      ctx.fillStyle = hgrad(ctx, x, x + w, ['#FFC9D6', '#FFF0F4', '#F7A8C4', '#FFD9E2']);
+      ctx.fillRect(x + 4, y, w - 8, h);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x + 4, y, w - 8, h);
+      ctx.clip();
+      for (let k = 0; k < 22; k++) {
+        const yy = y + hash(seed + k * 2.7) * h;
+        const px = x + 6 + hash(seed + k * 5.3) * (w - 20);
+        ctx.fillStyle = 'rgba(255,255,255,.5)';
+        heartPath(ctx, px + 6, yy, 5 + hash(seed + k) * 4);
+        ctx.fill();
+      }
+      ctx.restore();
+      colOutline(ctx, x + 4, y, w - 8, h, '#D98BA0');
+      if (capAt === 'top') {
+        ctx.fillStyle = '#FFFFFF';
+        for (let k = 0; k < 3; k++) {
+          ctx.beginPath();
+          ctx.arc(x + 6 + k * ((w - 12) / 2), y - 2, 11, 0, TAU);
+          ctx.fill();
+        }
+        ctx.fillStyle = 'rgba(255,180,200,.9)';
+        heartPath(ctx, x + w / 2, y + 2, 9);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = 'rgba(255,240,245,.95)';
+        rr(ctx, x - 3, y + h - 12, w + 6, 16, 8);
+        ctx.fill();
+        ctx.fillStyle = '#F58CA5';
+        heartPath(ctx, x + w / 2, y + h - 4, 7);
+        ctx.fill();
+      }
+    },
+  },
 };

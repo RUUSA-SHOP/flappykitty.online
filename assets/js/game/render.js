@@ -306,6 +306,15 @@ export class Renderer {
       else if (h.type === 'yarn') this.yarn(x, h.y, h.hue, t);
       else if (h.type === 'bat') this.bat(x, h.y, t);
       else if (h.type === 'frog') this.frog(x, h, t);
+      else if (h.type === 'dust') this.dustBall(x, h.y, t);
+      else if (h.type === 'roomba') this.roomba(x, h.y, t);
+      else if (h.type === 'bubble') this.bubble(x, h.y, t);
+      else if (h.type === 'bird') this.bird(x, h, t);
+      else if (h.type === 'bun') this.bun(x, h.y, t);
+      else if (h.type === 'soldier') this.soldier(x, h.y, t);
+      else if (h.type === 'ember') this.ember(x, h.y, t);
+      else if (h.type === 'steam') this.steam(x, h.y, t);
+      else if (h.type === 'lightning') this.bolt(x, h.y, t);
     }
 
     // след
@@ -741,6 +750,269 @@ export class Renderer {
     ctx.lineTo(7, -17);
     ctx.lineTo(7, -9);
     ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /* ---------- опасности второй главы ---------- */
+
+  dustBall(x, y, t) {
+    // клубок пыли: мягкий серый шар с крупинками
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(150,128,104,.85)';
+    ctx.beginPath();
+    ctx.arc(0, 0, 16, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(190,170,145,.9)';
+    ctx.beginPath();
+    ctx.arc(-4, -4, 11, 0, TAU);
+    ctx.fill();
+    for (let k = 0; k < 5; k++) {
+      const a = t * 1.6 + k * 1.3;
+      ctx.fillStyle = 'rgba(120,100,80,.7)';
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * 13, Math.sin(a) * 13, 1.8, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  roomba(x, y, t) {
+    // робот-пылесос: плоский диск с лампочкой и щётками
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(60,70,85,.25)';
+    ctx.beginPath();
+    ctx.ellipse(0, 12, 30, 6, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#4A566A';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 28, 15, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#5E6C83';
+    ctx.beginPath();
+    ctx.ellipse(0, -3, 26, 12, 0, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#8FA2B2';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, -3, 26, 12, 0, 0, TAU);
+    ctx.stroke();
+    // лампочка
+    const on = Math.sin(t * 6) > 0;
+    ctx.fillStyle = on ? '#7FE0A8' : '#3E7A58';
+    ctx.beginPath();
+    ctx.arc(-12, -4, 3, 0, TAU);
+    ctx.fill();
+    // щётки
+    ctx.strokeStyle = '#C9D3DE';
+    ctx.lineWidth = 2;
+    for (const s of [-1, 1]) {
+      const a = t * 14 * s;
+      ctx.beginPath();
+      ctx.moveTo(s * 18, 2);
+      ctx.lineTo(s * 18 + Math.cos(a) * 9, 2 + Math.sin(a) * 5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  bubble(x, y, t) {
+    // мыльный пузырь: прозрачный шар с бликом
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    const r = 15 + Math.sin(t * 4 + y) * 1.5;
+    const g = ctx.createRadialGradient(-r * 0.35, -r * 0.4, 1, 0, 0, r);
+    g.addColorStop(0, 'rgba(255,255,255,.9)');
+    g.addColorStop(0.45, 'rgba(210,240,255,.35)');
+    g.addColorStop(1, 'rgba(160,215,245,.55)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.85)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, TAU);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.95)';
+    ctx.beginPath();
+    ctx.arc(-r * 0.35, -r * 0.4, r * 0.22, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  bird(x, h, t) {
+    // голубь: сидит, а когда взлетает — машет крыльями
+    const ctx = this.ctx;
+    const flap = h.up ? Math.sin(t * 22) : 0;
+    ctx.save();
+    ctx.translate(x, h.y);
+    ctx.fillStyle = '#8C9BB0';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 12, 9, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#A9B7C9';
+    ctx.beginPath();
+    ctx.arc(-8, -6, 7, 0, TAU);
+    ctx.fill();
+    // клюв
+    ctx.fillStyle = '#F0B860';
+    ctx.beginPath();
+    ctx.moveTo(-15, -6);
+    ctx.lineTo(-21, -4);
+    ctx.lineTo(-15, -2);
+    ctx.fill();
+    // глаз
+    ctx.fillStyle = '#2B3446';
+    ctx.beginPath();
+    ctx.arc(-10, -8, 1.6, 0, TAU);
+    ctx.fill();
+    // крыло
+    ctx.fillStyle = '#7A8AA0';
+    ctx.beginPath();
+    ctx.moveTo(0, -2);
+    ctx.quadraticCurveTo(10, -2 - flap * 14, 16, 2 - flap * 18);
+    ctx.quadraticCurveTo(8, 3, 0, 4);
+    ctx.fill();
+    // хвост
+    ctx.beginPath();
+    ctx.moveTo(10, 0);
+    ctx.lineTo(20, 3);
+    ctx.lineTo(10, 5);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  bun(x, y, t) {
+    // летящая булочка с крошками
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = '#E0A860';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 15, 11, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#F0C98A';
+    ctx.beginPath();
+    ctx.ellipse(-2, -3, 11, 7, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(120,80,40,.6)';
+    for (let k = 0; k < 3; k++) {
+      ctx.beginPath();
+      ctx.arc(-4 + k * 5, -6 + (k % 2) * 4, 1.4, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  soldier(x, y, t) {
+    // оловянный солдатик: мундир, кивер, ружьё
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    const step = Math.sin(t * 10) * 2;
+    ctx.fillStyle = '#B03A4A';
+    ctx.fillRect(-6, -4, 12, 14);
+    ctx.fillStyle = '#2B3446';
+    ctx.fillRect(-6, 6, 12, 4 + step * 0.5);
+    // голова
+    ctx.fillStyle = '#F0C9A8';
+    ctx.beginPath();
+    ctx.arc(0, -10, 6, 0, TAU);
+    ctx.fill();
+    // кивер
+    ctx.fillStyle = '#2B3446';
+    ctx.fillRect(-7, -20, 14, 8);
+    ctx.fillStyle = '#F4C97B';
+    ctx.fillRect(-7, -20, 14, 2);
+    // ружьё
+    ctx.strokeStyle = '#6B563F';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(6, -2);
+    ctx.lineTo(16, -14);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ember(x, y, t) {
+    // уголёк: раскалённая точка со свечением
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    const a = 0.6 + 0.4 * Math.abs(Math.sin(t * 7 + y * 0.1));
+    const g = ctx.createRadialGradient(0, 0, 1, 0, 0, 20);
+    g.addColorStop(0, `rgba(255,170,70,${a * 0.5})`);
+    g.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, 20, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = `rgba(255,200,110,${a})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, 6, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = `rgba(255,240,200,${a})`;
+    ctx.beginPath();
+    ctx.arc(-1, -1, 3, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  steam(x, y, t) {
+    // облачко пара из пекарни
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    for (let k = 0; k < 4; k++) {
+      const a = t * 1.4 + k * 1.6;
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * 7, Math.sin(a * 0.8) * 7, 12 - k, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  bolt(x, y, t) {
+    // молния: яркая вертикальная вспышка
+    const ctx = this.ctx;
+    ctx.save();
+    const flash = 0.55 + 0.45 * Math.abs(Math.sin(t * 30));
+    ctx.globalAlpha = flash;
+    const g = ctx.createLinearGradient(x, 0, x, y + 40);
+    g.addColorStop(0, 'rgba(210,230,255,0)');
+    g.addColorStop(0.7, 'rgba(220,235,255,.85)');
+    g.addColorStop(1, 'rgba(255,255,255,.2)');
+    ctx.strokeStyle = g;
+    ctx.lineWidth = 5;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, -10);
+    let yy = -10;
+    let px = x;
+    while (yy < y) {
+      yy += 26;
+      px = x + Math.sin(yy * 0.9) * 9;
+      ctx.lineTo(px, yy);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.9)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // свет у земли
+    const gg = ctx.createRadialGradient(x, y, 1, x, y, 44);
+    gg.addColorStop(0, 'rgba(220,240,255,.6)');
+    gg.addColorStop(1, 'rgba(200,225,255,0)');
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = gg;
+    ctx.beginPath();
+    ctx.arc(x, y, 44, 0, TAU);
     ctx.fill();
     ctx.restore();
   }

@@ -17,6 +17,12 @@ globalThis.localStorage = {
   clear: () => store.clear(),
 };
 
+// Список опасностей, которые умеет и симулировать, и рисовать игра.
+// Новая опасность попадает сюда только вместе с ветками в sim.js и render.js.
+const HAZARDS = [
+  'drop', 'balloon', 'cucumber', 'wind', 'rain', 'frog', 'yarn', 'bat',
+  'dust', 'roomba', 'bubble', 'bird', 'bun', 'soldier', 'ember', 'steam', 'lightning',
+];
 const { Sim } = await import('../assets/js/game/sim.js');
 const { LEVELS, SKINS, POWERUPS, WORLD, ENDLESS_THEMES, endlessParams } = await import('../assets/js/game/levels.js');
 const { THEMES } = await import('../assets/js/game/themes.js');
@@ -63,16 +69,27 @@ test('уровни идут по порядку и ссылаются на су�
     assert.ok(l.name && l.tagline && l.story && l.tip, `у уровня ${l.id} нет названия, описания или подсказки`);
     assert.ok(l.gates >= 5 && l.gap >= 150 && l.speed > 0 && l.spacing >= 250, `странные параметры уровня ${l.id}`);
     for (const p of l.powerups) assert.ok(POWERUPS[p], `неизвестный бонус «${p}»`);
-    for (const h of l.hazards) assert.ok(['drop', 'balloon', 'cucumber', 'wind', 'rain', 'frog', 'yarn', 'bat'].includes(h), `неизвестная опасность «${h}»`);
+    for (const h of l.hazards) assert.ok(HAZARDS.includes(h), `неизвестная опасность «${h}»`);
   });
-  assert.equal(LEVELS.length, 10, 'в сюжете десять уровней');
+  assert.equal(LEVELS.length, 20, 'в сюжете двадцать уровней');
   assert.equal(new Set(LEVELS.map((l) => l.theme)).size, LEVELS.length, 'у каждого уровня свой мир');
-  // последний уровень — самый трудный: ни один новый не длиннее и не теснее его
-  const last = LEVELS[LEVELS.length - 1];
-  for (const l of LEVELS.slice(0, -1)) {
-    assert.ok(l.gates < last.gates, `уровень ${l.id} длиннее финала`);
-    assert.ok(l.gap > last.gap, `уровень ${l.id}: просвет не шире, чем в финале`);
-    assert.ok(l.speed < last.speed, `уровень ${l.id} быстрее финала`);
+  // Два финала: 10-й закрывает первую главу, 20-й — вторую.
+  // В каждой главе финал длиннее и теснее любого своего уровня — и примерно вдвое длиннее предыдущего.
+  const finals = LEVELS.filter((l) => l.finale).map((l) => l.id);
+  assert.deepEqual(finals, [10, 20], 'финалы — десятый и двадцатый уровни');
+  let start = 0;
+  for (const finId of finals) {
+    const block = LEVELS.slice(start, finId);
+    const fin = block[block.length - 1];
+    const prev = block[block.length - 2];
+    assert.ok(fin.gates / prev.gates >= 1.5, `финал № ${finId} должен быть заметно длиннее предыдущего уровня`);
+    for (const l of block.slice(0, -1)) {
+      assert.ok(l.gates < fin.gates, `уровень ${l.id} длиннее финала № ${finId}`);
+      // финал может быть на волосок теснее любого уровня главы, но не должен быть дырой уже него
+      assert.ok(l.gap >= fin.gap - 8, `уровень ${l.id}: просвет ${l.gap} заметно шире, чем в финале ${fin.gap}`);
+      assert.ok(l.speed <= fin.speed + 6, `уровень ${l.id} быстрее финала № ${finId}`);
+    }
+    start = finId;
   }
 });
 
@@ -162,14 +179,23 @@ test('config.js: реплики Мии и фото к запискам указ�
 });
 
 test('config.js: записка есть для каждого уровня, письмо — для последнего', () => {
-  for (let id = 1; id < LEVELS.length; id++) {
+  const letterLevels = new Set((CONFIG.letters || []).map((l) => l.level));
+  // после каждого уровня — записка, кроме финалов: там письмо
+  for (let id = 1; id <= LEVELS.length; id++) {
+    if (letterLevels.has(id)) continue;
     const note = CONFIG.notes.find((n) => n.level === id);
     assert.ok(note, `нет записки для уровня ${id}`);
     assert.ok(note.title.trim() && note.text.trim(), `пустая записка уровня ${id}`);
   }
-  assert.equal(CONFIG.finalLetter.level, LEVELS.length, 'письмо должно открываться после последнего уровня');
-  assert.ok(CONFIG.finalLetter.title.trim() && CONFIG.finalLetter.text.trim(), 'пустое письмо');
-  for (const n of CONFIG.notes) assert.ok(n.level >= 1 && n.level < LEVELS.length, `записка привязана к несуществующему уровню ${n.level}`);
+  assert.deepEqual([...letterLevels].sort((a, b) => a - b), [10, 20], 'письма открываются после 10-го и 20-го уровней');
+  for (const letter of CONFIG.letters) {
+    assert.ok(letter.title.trim() && letter.text.trim(), `пустое письмо после уровня ${letter.level}`);
+    assert.ok(letter.level >= 1 && letter.level <= LEVELS.length, `письмо привязано к несуществующему уровню ${letter.level}`);
+  }
+  // записок ровно столько, сколько нефинальных уровней: 20 уровней → 18 записок + 2 письма
+  assert.equal(CONFIG.notes.length, LEVELS.length - CONFIG.letters.length, 'записок должно быть на два меньше, чем уровней');
+  for (const n of CONFIG.notes) assert.ok(n.level >= 1 && n.level <= LEVELS.length, `записка привязана к несуществующему уровню ${n.level}`);
+  assert.ok(!letterLevels.has(CONFIG.notes.find((n) => n.level === 10)?.level), 'для финала не должно быть записки, только письмо');
   assert.ok(CONFIG.her.name && CONFIG.her.sweet && CONFIG.her.dative && CONFIG.cat.name && CONFIG.from);
 });
 

@@ -222,7 +222,7 @@ if (exists('sw.js')) {
   const ORD = { первого: 1, второго: 2, третьего: 3, четвёртого: 4, пятого: 5, шестого: 6, седьмого: 7, восьмого: 8, девятого: 9, десятого: 10, одиннадцатого: 11, двенадцатого: 12 };
   const num = (w) => (/^\d+$/.test(w) ? +w : WORDS[w.toLowerCase()]);
   const texts = [...pages.map(rel), 'README.md', 'AGENTS.md', 'docs/PLAN.md'].filter(exists).map((f) => [f, read(f)]);
-  texts.push(['assets/js/config.js → finalLetter', CONFIG.finalLetter.text]);
+  // Тексты писем — личные, владелец может писать там что угодно про числа. Их в сверку не берём.
   for (const [file, text] of texts) {
     // «шесть уровней», «6 сюжетных уровней», «с десятью уровнями», «все шесть уровней»
     for (const m of text.matchAll(/(?<![\wа-яё.,-])(\d+|[а-яё]+)\s+(?:сюжетны[а-яё]+\s+)?уровн(?:ей|ями|ях|я)(?![а-яё])/gi)) {
@@ -239,15 +239,21 @@ if (exists('sw.js')) {
   if (exists('index.html')) {
     const cards = [...read('index.html').matchAll(/class="lvl__n"[^>]*>(\d+)<[\s\S]*?<h3>([^<]+)<\/h3>/g)].map((m) => [+m[1], m[2].trim()]);
     if (cards.length !== N) err('index.html', `карточек уровней ${cards.length}, а уровней в игре ${N}`);
-    const names = LEVELS.map((l) => (l.id === N ? `Дорога к ${CONFIG.her.dative}` : l.name));
+    // финалы называются по имени Насти: уровень 10 — «Дорога к …», 20 — «Дорога к … · рассвет»
+    const names = LEVELS.map((l) => {
+      if (l.theme === 'love') return `Дорога к ${CONFIG.her.dative}`;
+      if (l.theme === 'dawn') return `Дорога к ${CONFIG.her.dative} · рассвет`;
+      return l.name;
+    });
     cards.forEach(([n, name], i) => {
       if (n !== i + 1 || name !== names[i]) err('index.html', `карточка № ${i + 1}: «${n}. ${name}», а в игре «${i + 1}. ${names[i]}»`);
     });
   }
   // счётчик записок в разметке — до того, как его перерисует скрипт
   if (exists('love.html')) {
+    const TOTAL = N; // записок столько же, сколько уровней: после каждого — записка или письмо
     const m = read('love.html').match(/id="noteCount">Открыто 0 из (\d+)</);
-    if (!m || +m[1] !== N) err('love.html', `счётчик записок «Открыто 0 из ${m ? m[1] : '?'}», должно быть ${N}`);
+    if (!m || +m[1] !== TOTAL) err('love.html', `счётчик записок «Открыто 0 из ${m ? m[1] : '?'}», должно быть ${TOTAL}`);
   }
   // счётчик звёзд в разметке — до того, как его перерисует скрипт
   if (exists('play.html')) {

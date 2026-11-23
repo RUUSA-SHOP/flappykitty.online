@@ -273,8 +273,14 @@ function renderLevels() {
 }
 
 function levelName(l) {
-  return l.theme === 'love' ? `Дорога к ${CONFIG.her.dative}` : l.name;
+  // у финалов название собирается из имени Насти, чтобы смена имени не оставила «Дорога к Насте» в коде
+  if (l.theme === 'love') return `Дорога к ${CONFIG.her.dative}`;
+  if (l.theme === 'dawn') return `Дорога к ${CONFIG.her.dative} · рассвет`;
+  return l.name;
 }
+
+/** Письмо, которое открывается после этого уровня (или null). Писем два: после 10-го и после 20-го. */
+const letterFor = (id) => (CONFIG.letters || []).find((l) => l.level === id) || null;
 
 function renderSkins() {
   const d = save.data;
@@ -522,7 +528,14 @@ function onEvent(ev) {
       sound.play('gate');
       break;
     case 'warn':
-      sound.play(ev.kind === 'bat' ? 'squeak' : 'warn');
+      sound.play(ev.kind === 'bat' ? 'squeak' : ev.kind === 'lightning' ? 'thunder' : 'warn');
+      break;
+    case 'coo':
+      sound.play('coo');
+      break;
+    case 'lightning':
+      sound.play('thunder');
+      buzz(40);
       break;
     case 'wind':
       sound.play('wind');
@@ -592,8 +605,10 @@ function showWin() {
   $('#winStars').setAttribute('aria-label', `Звёзд: ${stars} из 3`);
 
   // Первое прохождение ведёт к записке. Если она уже прочитана — можно сразу лететь дальше.
-  const isFinal = levelId === LEVELS.length;
-  const hasNote = isFinal ? !!CONFIG.finalLetter : CONFIG.notes.some((n) => n.level === levelId);
+  const letter = letterFor(levelId);
+  const isFinal = !!letter;
+  const isLast = levelId === LEVELS.length;
+  const hasNote = isFinal || CONFIG.notes.some((n) => n.level === levelId);
   const seen = save.data.seenNotes.includes(levelId);
   const btnNote = $('#btnNote');
   const btnNext = $('#btnWinNext');
@@ -601,16 +616,22 @@ function showWin() {
   btnNote.className = seen ? 'btn btn--ghost btn--small' : 'btn';
   $('#btnNoteLabel').textContent = seen ? (isFinal ? 'Перечитать письмо' : 'Перечитать записку') : isFinal ? 'Открыть письмо' : 'Открыть записку';
   btnNext.hidden = hasNote && !seen;
-  btnNext.textContent = isFinal ? 'В меню' : `Дальше · уровень ${levelId + 1}`;
+  // на промежуточном финале (10-й) игра продолжается, поэтому кнопка ведёт дальше, а не в меню
+  btnNext.textContent = isLast ? 'В меню' : `Дальше · уровень ${levelId + 1}`;
   $('#btnWinRetry').hidden = stars >= 3;
   go('win');
 }
 
 function showNote() {
-  const isFinal = levelId === LEVELS.length;
-  const note = isFinal ? CONFIG.finalLetter : CONFIG.notes.find((n) => n.level === levelId);
+  const letter = letterFor(levelId);
+  const isFinal = !!letter;
+  const note = letter || CONFIG.notes.find((n) => n.level === levelId);
   if (!note) return nextAfterWin();
-  $('#noteNo').textContent = isFinal ? 'Письмо' : `Записка № ${levelId} из ${LEVELS.length - 1}`;
+  const letterNo = (CONFIG.letters || []).indexOf(letter) + 1;
+  const letterTotal = (CONFIG.letters || []).length;
+  $('#noteNo').textContent = isFinal
+    ? letterTotal > 1 ? `Письмо № ${letterNo} из ${letterTotal}` : 'Письмо'
+    : `Записка № ${levelId} из ${CONFIG.notes.length}`;
   $('#noteTitle').textContent = note.title;
   const box = $('#noteText');
   box.innerHTML = '';
@@ -620,7 +641,7 @@ function showNote() {
     box.appendChild(p);
   });
   setSignature($('#noteSign'), isFinal ? CONFIG.from : `— ${note.from || CONFIG.cat.name}`);
-  $('#btnNoteNext').textContent = isFinal ? 'В меню' : `Дальше · уровень ${levelId + 1}`;
+  $('#btnNoteNext').textContent = levelId >= LEVELS.length ? 'В меню' : `Дальше · уровень ${levelId + 1}`;
   fillPhoto(levelId);
   // строки появляются одна за другой: письмо — неторопливо, записки — быстрее
   const letter = $('#letter');
@@ -687,7 +708,7 @@ function openEnvelope() {
   sound.play('envelope');
   buzz([20, 60, 20]);
   // музыка письма — тихая и медленная; играет, пока письмо открыто
-  if (musicStarted) sound.setTheme('letter');
+  if (musicStarted) sound.setTheme(levelId >= LEVELS.length ? 'letter' : 'letter2');
   env.classList.add('is-open');
   clearTimeout(envelopeTimer);
   envelopeTimer = setTimeout(

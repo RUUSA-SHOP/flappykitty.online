@@ -437,6 +437,19 @@ h3 {
   object-fit: cover;
   object-position: 50% 42%;
 }
+.lvl__shot--soon {
+  display: grid;
+  place-items: center;
+  /* уровень без кадра: мягкая заливка, чтобы карточка не выглядела сломанной */
+  background: linear-gradient(160deg, #fbe8ec 0%, #f7f1fb 55%, #eef4fb 100%);
+}
+.lvl__shot--soon::after {
+  content: "Кадр скоро";
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  color: #a98a97;
+}
+
 .lvl__n {
   position: absolute;
   left: 10px;
@@ -1233,6 +1246,14 @@ a.world:hover {
   background-position: 0 calc(36px - var(--row) * 0.14);
   transform: rotate(-0.6deg);
 }
+.note__sep {
+  border: 0;
+  height: 1px;
+  max-width: 44rem;
+  margin: 28px auto;
+  background: linear-gradient(90deg, transparent, rgba(180, 130, 150, 0.35), transparent);
+}
+
 .note--final.note--locked {
   --row: 1.45rem;
   min-height: 240px;

@@ -14,6 +14,15 @@ const FROG_Y = GROUND - 14; // на этой высоте лягушонок с�
 const FROG_GRAVITY = 1500;
 const FROG_WARN = 0.6; // столько секунд по воде идут круги, прежде чем лягушонок прыгнет
 const BAT_WAVE = 38; // размах волны, по которой летит летучая мышь
+// Опасности второй главы
+const ROOMBA_Y = GROUND - 12; // робот-пылесос едет по полу
+const BIRD_Y = GROUND - 40; // голуби взлетают с земли
+const BUBBLE_RISE = 46; // мыльный пузырь всплывает снизу вверх
+const BUN_SPEED = 96; // булочка летит навстречу, но небыстро: она должна быть уклоняемой на широком экране
+const SOLDIER_SPEED = 150; // оловянный солдатик шагает навстречу
+const EMBER_RISE = 130; // уголёк поднимается от камина
+const BOLT_PERIOD_MIN = 2.6; // молния бьёт не чаще, чем раз в столько секунд
+const DUST_SPEED = 110;
 
 function mulberry32(a) {
   return function () {
@@ -61,6 +70,7 @@ export class Sim {
     this.wind = { state: 'idle', timer: 4, dir: 1 };
     this.cucumberTimer = 3.5;
     this.batTimer = 3;
+    this.boltTimer = 3;
     this.clear = 0; // 0…1 — насколько «прояснилось» после дождя (только для уровней с calmFrom)
     this.cleared = false;
 
@@ -221,6 +231,54 @@ export class Sim {
       this.hazards.push({ type: 'frog', x: midX, y: FROG_Y, r: 15, vx: 0, vy: 0, state: 'sit', timer: 0, jump: 735 + r() * 150, at: 0.2 + r() * 0.55 });
       midBusy = true;
     }
+    // ---- вторая глава: у каждой опасности своя манера ----
+
+    // пыль на чердаке: медленно летит навстречу, легко объехать
+    if (hz.includes('dust') && !midBusy && r() < 0.38) {
+      const side = r() < 0.5 ? -1 : 1;
+      const dy = clamp(pathY(0.5) + side * (70 + r() * 40), 70, GROUND - 70);
+      this.hazards.push({ type: 'dust', x: midX, y: dy, y0: dy, r: 17, vx: -DUST_SPEED, phase: r() * 6.28 });
+      midBusy = true;
+    }
+    // робот-пылесос: едет по полу и не меняет высоту — спасает то, что Мия летит выше
+    if (hz.includes('roomba') && !midBusy && r() < 0.40) {
+      this.hazards.push({ type: 'roomba', x: midX, y: ROOMBA_Y, y0: ROOMBA_Y, r: 26, vx: -60, phase: r() * 6.28 });
+      midBusy = true;
+    }
+    // мыльные пузыри: всплывают снизу, пересекая путь
+    if (hz.includes('bubble') && !midBusy && r() < 0.38) {
+      const startY = GROUND - 40 - r() * 60;
+      this.hazards.push({ type: 'bubble', x: midX, y: startY, y0: startY, r: 16, vx: 0, vy: -BUBBLE_RISE, phase: r() * 6.28 });
+      midBusy = true;
+    }
+    // голубь: сидит низко и взлетает, когда Мия уже близко
+    if (hz.includes('bird') && !midBusy && r() < 0.38) {
+      this.hazards.push({ type: 'bird', x: midX, y: BIRD_Y, y0: BIRD_Y, r: 13, vx: 0, vy: 0, phase: r() * 6.28, up: false });
+      midBusy = true;
+    }
+    // булочка: летит навстречу по прямой
+    if (hz.includes('bun') && !midBusy && r() < 0.30) {
+      const by = clamp(pathY(0.5) + (r() * 2 - 1) * 60, 70, GROUND - 70);
+      this.hazards.push({ type: 'bun', x: midX, y: by, y0: by, r: 15, vx: -BUN_SPEED, phase: r() * 6.28 });
+      midBusy = true;
+    }
+    // солдатик: шагает навстречу, но чуть медленнее булочки
+    if (hz.includes('soldier') && !midBusy && r() < 0.36) {
+      const sy = clamp(pathY(0.5) + (r() * 2 - 1) * 55, 70, GROUND - 70);
+      this.hazards.push({ type: 'soldier', x: midX, y: sy, y0: sy, r: 15, vx: -SOLDIER_SPEED, phase: r() * 6.28 });
+      midBusy = true;
+    }
+    // уголёк: поднимается от камина вверх
+    if (hz.includes('ember') && !midBusy && r() < 0.38) {
+      this.hazards.push({ type: 'ember', x: midX, y: GROUND - 30, y0: GROUND - 30, r: 12, vx: 0, vy: -EMBER_RISE, phase: r() * 6.28 });
+      midBusy = true;
+    }
+    // пар из пекарни: медленно поднимается, широкий и мягкий
+    if (hz.includes('steam') && !midBusy && r() < 0.28) {
+      this.hazards.push({ type: 'steam', x: midX, y: GROUND - 20, y0: GROUND - 20, r: 22, vx: 0, vy: -60, phase: r() * 6.28 });
+      midBusy = true;
+    }
+
     // золотая рыбка — в стороне от безопасной траектории
     if (!midBusy && idx > 0 && r() < 0.2) {
       const side = pathY(0.5) > 330 ? -1 : 1;
@@ -418,12 +476,27 @@ export class Sim {
         this.emit('warn', { y, kind: 'bat' });
       }
     }
+    // молнии: бьют сверху вниз по отмеченной высоте, предупреждение — короткое
+    if (hazardsOn.includes('lightning')) {
+      this.boltTimer -= dt;
+      if (this.boltTimer <= 0) {
+        this.boltTimer = BOLT_PERIOD_MIN + this.rand() * 2.2;
+        const y = clamp(m.y + (this.rand() * 2 - 1) * 55, 90, GROUND - 90);
+        this.warnings.push({ y, timer: 0.85, kind: 'lightning' });
+        this.emit('warn', { y, kind: 'lightning' });
+      }
+    }
     for (const w of this.warnings) {
       w.timer -= dt;
       if (w.timer <= 0) {
         const x = this.dist + this.viewW + 40;
         if (w.kind === 'bat') this.hazards.push({ type: 'bat', x, y: w.y, y0: w.y, vx: -100, r: 14, amp: BAT_WAVE, phase: this.rand() * 6.28 });
-        else this.hazards.push({ type: 'cucumber', x, y: w.y, y0: w.y, vx: -115, r: 15, phase: this.rand() * 6.28 });
+        else if (w.kind === 'lightning') {
+          // Молния бьёт в отмеченную высоту на своём участке пути: уклоняться надо по высоте,
+          // а не по времени. Ставим её впереди Мии, чтобы вспышку было видно заранее.
+          this.hazards.push({ type: 'lightning', x, y: w.y, y0: w.y, r: 15, vx: 0, life: 0.6, phase: this.rand() * 6.28 });
+          this.emit('lightning', { x, y: w.y });
+        } else this.hazards.push({ type: 'cucumber', x, y: w.y, y0: w.y, vx: -115, r: 15, phase: this.rand() * 6.28 });
         w.done = true;
       }
     }
@@ -446,6 +519,35 @@ export class Sim {
       } else if (h.type === 'bat') {
         h.x += h.vx * dt;
         h.y = h.y0 + Math.sin(h.phase + this.t * 3.2) * h.amp;
+      } else if (h.type === 'dust') {
+        h.x += h.vx * dt;
+        h.y = h.y0 + Math.sin(h.phase + this.t * 2.1) * 14;
+      } else if (h.type === 'roomba') {
+        h.x += h.vx * dt;
+        h.y = ROOMBA_Y - Math.abs(Math.sin(h.phase + this.t * 2.4)) * 5;
+      } else if (h.type === 'lightning') {
+        // стоит на месте и быстро гаснет: это вспышка, а не летящий предмет
+        h.life -= dt;
+        if (h.life <= 0) h.dead = true;
+      } else if (h.type === 'bubble' || h.type === 'ember' || h.type === 'steam') {
+        h.y += h.vy * dt;
+        h.x += Math.sin(h.phase + this.t * 2.6) * 26 * dt;
+        if (h.y < -40) h.dead = true;
+      } else if (h.type === 'bun' || h.type === 'soldier') {
+        h.x += h.vx * dt;
+        h.y = h.y0 + Math.sin(h.phase + this.t * 4.2) * 10;
+      } else if (h.type === 'bird') {
+        // голубь срывается, когда Мия подлетает близко
+        if (!h.up && h.x - this.dist - this.miaX < 260 && h.x > this.dist + this.miaX) {
+          h.up = true;
+          this.emit('coo', { x: h.x, y: h.y });
+        }
+        if (h.up) {
+          h.vy = Math.max(h.vy - 420 * dt, -190);
+          h.y += h.vy * dt;
+          h.x += 40 * dt;
+          if (h.y < 60) h.dead = true;
+        }
       } else if (h.type === 'frog') {
         const sx = h.x - this.dist;
         if (h.state === 'sit') {
