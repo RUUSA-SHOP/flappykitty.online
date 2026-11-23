@@ -1,5 +1,5 @@
 /* Сквозная проверка в настоящем браузере: открывает страницы, нажимает кнопки,
-   проходит и проигрывает уровни и смотрит, что всё ведёт себя как задумано.
+   проходит и проигрывает раунды и смотрит, что всё ведёт себя как задумано.
 
    Нужны две библиотеки, которых нет в репозитории (они тяжёлые):
      npm i --no-save puppeteer-core @sparticuz/chromium
@@ -12,12 +12,15 @@
    домена. Заодно проверяется, что все пути в проекте относительные. */
 
 import { createServer } from './serve.mjs';
-import { LEVELS } from '../assets/js/game/levels.js';
+import { LEVELS, ROUNDS, ROUNDS_PER_LEVEL, roundsOf } from '../assets/js/game/levels.js';
 import { CONFIG } from '../assets/js/config.js';
 
-const TOTAL = LEVELS.length; // уровней в сюжете
-// На странице записок карточек больше: у каждого финала записка Мии и письмо создателя.
-const CARDS = CONFIG.notes.length + (CONFIG.letters || []).length * 2;
+const TOTAL = ROUNDS.length; // раундов в сюжете: два уровня по десять
+const PER = ROUNDS_PER_LEVEL; // раундов в уровне
+// На странице записок: записка после каждого раунда и письмо в конце каждого уровня.
+const CARDS = CONFIG.notes.length + (CONFIG.letters || []).length;
+/** «Уровень 2 · раунд 3» — так раунд называется в игре. */
+const roundLabel = (id) => `Уровень ${ROUNDS[id - 1].level} · раунд ${ROUNDS[id - 1].no}`;
 const upTo = (n) => Array.from({ length: n }, (_, i) => i + 1);
 
 let puppeteer;
@@ -34,7 +37,7 @@ let executablePath = process.env.CHROME_PATH;
 let args = [
   '--no-sandbox',
   '--autoplay-policy=no-user-gesture-required',
-  '--host-resolver-rules=MAP ruusa-shop.github.io 127.0.0.1, MAP flappykitty.online 127.0.0.1',
+  '--host-resolver-rules=MAP miagpt.github.io 127.0.0.1, MAP flappykitty.online 127.0.0.1',
 ];
 if (!executablePath) {
   try {
@@ -53,9 +56,9 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const ORIGIN = `http://127.0.0.1:${server.address().port}`;
 const rootServer = createServer({ base: '/' });
 await new Promise((r) => rootServer.listen(0, '127.0.0.1', r));
-const PAGES_URL = `http://ruusa-shop.github.io:${server.address().port}${BASE}`;
+const PAGES_URL = `http://miagpt.github.io:${server.address().port}${BASE}`;
 const DOMAIN_URL = `http://flappykitty.online:${rootServer.address().port}/`;
-// protocolTimeout: на слабой машине без видеокарты один долгий вызов (прогон уровня с отрисовкой) идёт дольше трёх минут по умолчанию
+// protocolTimeout: на слабой машине без видеокарты один долгий вызов (прогон раунда с отрисовкой) идёт дольше трёх минут по умолчанию
 const browser = await puppeteer.launch({ executablePath, args, headless: true, protocolTimeout: 600000 });
 
 const only = process.argv[2];
@@ -143,7 +146,7 @@ async function game(opts = {}, query = '') {
   return page;
 }
 
-/** Проматывает текущий уровень: 'win' — автопилот долетает до финиша, 'lose' — Мия падает. */
+/** Проматывает текущий раунд: 'win' — автопилот долетает до финиша, 'lose' — Мия падает. */
 function fastForward(page, how, { hits = 0 } = {}) {
   return page.evaluate(
     (how, hits) => {
@@ -257,7 +260,7 @@ await test('записки: закрыты до прохождения, откр
   const fresh = track(await open('love.html'));
   equal(await fresh.evaluate(() => document.querySelectorAll('.note--locked').length), CARDS, 'у нового гостя заперто всё');
   equal(await text(fresh, '#noteCount'), `Открыто 0 из ${CARDS}`, 'счётчик');
-  equal(await fresh.evaluate(() => [...document.querySelectorAll('.note--locked a')].map((a) => a.getAttribute('href'))), ['play.html?level=1'], 'кнопка «Пройти уровень» только у первой');
+  equal(await fresh.evaluate(() => [...document.querySelectorAll('.note--locked a')].map((a) => a.getAttribute('href'))), ['play.html?round=1'], 'кнопка «Пройти раунд» только у первой');
   assert(!(await fresh.evaluate(() => document.body.textContent.includes('Люблю'))), 'текст письма не должен попадать на страницу раньше времени');
 
   const some = track(await open('love.html', { save: { notes: [1, 2], levels: { 1: { done: true, stars: 3 }, 2: { done: true, stars: 1 } }, plays: 2 } }));
@@ -266,10 +269,19 @@ await test('записки: закрыты до прохождения, откр
   equal((await stored(some)).seenNotes, [1, 2], 'открытые записки отмечаются прочитанными');
 
   const all = track(await open('love.html', { save: { rounds: TOTAL, notes: upTo(TOTAL), plays: 9 } }));
-  equal(await all.evaluate(() => document.querySelectorAll('.note--locked').length), 0, 'после всех уровней открыто всё');
+  equal(await all.evaluate(() => document.querySelectorAll('.note--locked').length), 0, 'после всех раундов открыто всё');
   equal(await text(all, '#noteCount'), `Открыты все ${CARDS}`, 'счётчик');
-  equal(await all.evaluate(() => document.querySelectorAll('#notes .note').length), CONFIG.notes.length, 'обычных записок на странице');
-  equal(await all.evaluate(() => document.querySelectorAll('#final .note--final').length), (CONFIG.letters || []).length, 'писем в блоке финала');
+  // страница сложена так же, как игра: уровень → десять записок → письмо
+  const books = await all.evaluate(() => [...document.querySelectorAll('#notes .notebook')].map((b) => ({
+    level: +b.dataset.level,
+    title: b.querySelector('h2').textContent,
+    notes: b.querySelectorAll('.notes .note').length,
+    letters: b.querySelectorAll('.notebook__letter .note--final').length,
+    label: (b.querySelector('.notebook__letter .note__no') || {}).textContent,
+  })));
+  equal(books, LEVELS.map((l) => ({ level: l.id, title: l.name, notes: PER, letters: 1, label: `Письмо № ${l.id} из ${LEVELS.length}` })), 'на странице два уровня: по десять записок и по письму');
+  equal(await all.evaluate(() => document.querySelectorAll('#notes .notes .note').length), 20, 'записок двадцать');
+  equal(await all.evaluate(() => document.querySelectorAll('#notes .note--final').length), 2, 'писем два');
   assert(await visible(all, '.note--final'), 'письмо показано');
 
   const peek = track(await open('love.html?peek=1'));
@@ -298,14 +310,14 @@ await test('несуществующий адрес показывает стр�
 await test('первый запуск: меню → вступление → полёт', async (track) => {
   const page = track(await game());
   equal(await text(page, '#btnPlayLabel'), 'Играть', 'надпись на главной кнопке');
-  equal(await page.evaluate(() => document.getElementById('btnEndless').getAttribute('aria-disabled')), 'true', 'бесконечный режим закрыт до первого уровня');
+  equal(await page.evaluate(() => document.getElementById('btnEndless').getAttribute('aria-disabled')), 'true', 'бесконечный режим закрыт до первого раунда');
   assert(!(await visible(page, '#bday')), 'поздравление видно не в день рождения');
   await page.click('#btnEndless');
   equal(await screen(page), 'menu', 'закрытый бесконечный режим не должен запускаться');
   await page.click('#btnPlay');
   await waitScreen(page, 'intro');
-  equal(await text(page, '#introName'), 'Гостиная', 'название уровня');
-  assert((await text(page, '#introTip')).length > 10, 'нет подсказки перед уровнем');
+  equal(await text(page, '#introName'), 'Гостиная', 'название раунда');
+  assert((await text(page, '#introTip')).length > 10, 'нет подсказки перед раундом');
   await page.click('#btnGo');
   await waitScreen(page, 'play');
   assert(await visible(page, '#hud'), 'счётчики должны быть видны');
@@ -346,7 +358,7 @@ await test('управление: касание, пробел, пауза по 
   await waitScreen(page, 'pause');
   await page.tap('#btnRestart');
   await waitScreen(page, 'play');
-  equal(await page.evaluate(() => window.__fk.sim.status), 'ready', '«Заново» начинает уровень сначала');
+  equal(await page.evaluate(() => window.__fk.sim.status), 'ready', '«Заново» начинает раунд сначала');
 });
 
 await test('сворачивание вкладки ставит игру на паузу', async (track) => {
@@ -363,7 +375,7 @@ await test('сворачивание вкладки ставит игру на �
   equal(await screen(page), 'pause', 'экран после сворачивания');
 });
 
-await test('победа: звёзды, сердечки в кошелёк, записка, следующий уровень', async (track) => {
+await test('победа: звёзды, сердечки в кошелёк, записка, следующий раунд', async (track) => {
   const page = track(await game());
   await page.click('#btnPlay');
   await page.click('#btnGo');
@@ -374,7 +386,7 @@ await test('победа: звёзды, сердечки в кошелёк, за
   assert(run.progress > 0.999, 'на финише полоска должна быть полной');
   await waitScreen(page, 'win');
   const d = await stored(page);
-  equal(d.levels[1], { done: true, stars: 3, hearts: run.pathHearts }, 'результат уровня');
+  equal(d.levels[1], { done: true, stars: 3, hearts: run.pathHearts }, 'результат раунда');
   equal(d.hearts, run.hearts + 15, 'в кошельке собранное плюс 5 за каждую звезду');
   equal(d.notes, [1], 'записка открыта');
   equal(await text(page, '#winHearts'), `+${run.hearts + 15}`, 'награда на экране');
@@ -391,12 +403,12 @@ await test('победа: звёзды, сердечки в кошелёк, за
   equal((await stored(page)).seenNotes, [1], 'записка прочитана');
   await page.click('#btnNoteNext');
   await waitScreen(page, 'intro');
-  equal(await text(page, '#introName'), 'Кухня', 'после записки — второй уровень');
+  equal(await text(page, '#introName'), 'Кухня', 'после записки — второй раунд');
 
-  // меню после первого уровня
+  // меню после первого раунда
   await page.click('.screen[data-name="intro"] [data-go="menu"]');
   await waitScreen(page, 'menu');
-  equal(await text(page, '#btnPlayLabel'), 'Уровень 2', 'главная кнопка ведёт дальше');
+  equal(await text(page, '#btnPlayLabel'), 'Уровень 1 · раунд 2', 'главная кнопка ведёт дальше');
   equal(await page.evaluate(() => document.getElementById('btnEndless').getAttribute('aria-disabled')), 'false', 'бесконечный режим открылся');
   equal(await text(page, '.screen[data-name="menu"] [data-wallet]'), String(d.hearts), 'кошелёк в меню');
 });
@@ -405,9 +417,10 @@ await test('повторная победа: записку можно проп�
   const page = track(await game({ save: { levels: { 1: { done: true, stars: 3, hearts: 30 } }, notes: [1], seenNotes: [1], hearts: 10, totalHearts: 10, plays: 1 } }));
   await page.click('#btnLevels');
   await waitScreen(page, 'levels');
-  equal(await page.evaluate(() => [...document.querySelectorAll('#levelList .level')].map((b) => b.disabled)), upTo(TOTAL).map((id) => id > 2), 'какие уровни открыты');
+  equal(await page.evaluate(() => [...document.querySelectorAll('#levelList .level')].map((b) => b.disabled)), upTo(TOTAL).map((id) => id > 2), 'какие раунды открыты');
   equal(await text(page, '#starTotal'), `3/${TOTAL * 3}`, 'счётчик звёзд');
-  await page.click('#levelList li:nth-child(1) .level');
+  equal(await page.evaluate(() => [...document.querySelectorAll('#levelList .tier')].map((s) => [s.querySelector('.tier__no').textContent, s.querySelectorAll('.level').length, s.classList.contains('is-locked')])), [['Уровень 1', PER, false], ['Уровень 2', PER, true]], 'на экране два уровня по десять раундов, второй закрыт');
+  await page.click('#levelList .level[data-round="1"]');
   await waitScreen(page, 'intro');
   await page.click('#btnGo');
   const run = await fastForward(page, 'win', { hits: 1 });
@@ -415,23 +428,23 @@ await test('повторная победа: записку можно проп�
   await waitScreen(page, 'win');
   assert(await visible(page, '#btnWinNext'), 'записка уже прочитана — нужна кнопка «Дальше»');
   assert(await visible(page, '#btnWinRetry'), 'не три звезды — предлагаем попробовать ещё раз');
-  equal(await text(page, '#btnWinNext'), 'Дальше · уровень 2', 'надпись на кнопке');
+  equal(await text(page, '#btnWinNext'), 'Дальше · раунд 2', 'надпись на кнопке');
   equal((await stored(page)).levels[1].stars, 3, 'лучший результат не затёрся');
   await page.click('#btnWinNext');
   await waitScreen(page, 'intro');
-  equal(await text(page, '#introName'), 'Кухня', 'переход на следующий уровень');
+  equal(await text(page, '#introName'), 'Кухня', 'переход на следующий раунд');
 });
 
-await test('проигрыш: сердечки остаются, «Ещё раз» запускает уровень заново', async (track) => {
+await test('проигрыш: сердечки остаются, «Ещё раз» запускает раунд заново', async (track) => {
   const page = track(await game({ save: { hearts: 5, totalHearts: 5, plays: 1 } }));
   await page.click('#btnPlay');
   await page.click('#btnGo');
   await page.evaluate(() => (window.__fk.sim.hearts = 4));
   const run = await fastForward(page, 'lose');
-  equal(run.status, 'lost', 'без взмахов уровень проигран');
+  equal(run.status, 'lost', 'без взмахов раунд проигран');
   await waitScreen(page, 'lose');
   equal((await stored(page)).hearts, 9, 'собранные сердечки зачислены');
-  equal((await stored(page)).levels, {}, 'уровень не засчитан');
+  equal((await stored(page)).levels, {}, 'раунд не засчитан');
   equal(await text(page, '#loseHearts'), '+4', 'награда на экране');
   assert(/^Пройдено \d+%$/.test(await text(page, '#loseProgress')), 'нет строки «Пройдено N%»');
   await page.click('#btnRetry');
@@ -472,27 +485,76 @@ await test('выход через паузу: собранные сердечк�
   equal(await text(page, '#loseHearts'), '+4', 'на экране — всё, что собрано за попытку');
 });
 
-await test('финал: после последнего уровня открывается письмо, меню предлагает играть снова', async (track) => {
+await test('финал первого уровня: записка № 10, первое письмо в конверте, дальше — уровень 2', async (track) => {
+  const levels = {};
+  for (let i = 1; i < PER; i++) levels[i] = { done: true, stars: 3, hearts: 20 };
+  const page = track(await game({ save: { rounds: TOTAL, levels, notes: upTo(PER - 1), seenNotes: upTo(PER - 1), plays: 9 } }));
+  equal(await text(page, '#btnPlayLabel'), `Уровень 1 · раунд ${PER}`, 'главная кнопка');
+  await page.click('#btnLevels');
+  await waitScreen(page, 'levels');
+  equal(await page.evaluate(() => [...document.querySelectorAll('#levelList .tier')].map((s) => s.classList.contains('is-locked'))), [false, true], 'второй уровень закрыт, пока не пройден десятый раунд первого');
+  equal(await page.evaluate(() => [...document.querySelectorAll('#levelList .tier__letter')].map((e) => e.textContent.trim())), [`Письмо — после раунда ${PER}`, `Письмо — после раунда ${PER}`], 'плашки писем');
+  equal(await page.evaluate(() => [...document.querySelectorAll('#levelList .level__art > span')].map((e) => e.textContent).join(' ')), [...upTo(PER), ...upTo(PER)].join(' '), 'раунды в каждом уровне нумеруются с единицы');
+  await page.click(`#levelList .level[data-round="${PER}"]`);
+  await waitScreen(page, 'intro');
+  equal(await text(page, '#introEyebrow'), `Уровень 1 · раунд ${PER} из ${PER} · ${ROUNDS[PER - 1].gates} ворот`, 'строка над названием');
+  await page.click('#btnGo');
+  equal((await fastForward(page, 'win')).status, 'won', 'десятый раунд пройден');
+  await waitScreen(page, 'win');
+  equal(await text(page, '#winEyebrow'), `Уровень 1 пройден · Дорога к ${CONFIG.her.dative}`, 'строка над победой');
+  equal(await text(page, '#btnNoteLabel'), 'Открыть записку и письмо', 'кнопка записки и письма');
+  assert(!(await visible(page, '#btnWinNext')), 'мимо письма пройти нельзя');
+  await page.click('#btnNote');
+  await waitScreen(page, 'note');
+  equal(await text(page, '#noteNo'), `Записка № ${PER} из ${CONFIG.notes.length}`, 'сначала десятая записка');
+  equal(await text(page, '#noteTitle'), CONFIG.notes[PER - 1].title, 'заголовок десятой записки');
+  equal(await text(page, '#btnNoteNext'), 'Распечатать письмо', 'кнопка под запиской');
+  await page.click('#btnNoteNext');
+  await waitScreen(page, 'note');
+  assert(await visible(page, '#envelope'), 'письмо приходит в конверте');
+  await page.click('#envelope');
+  await page.waitForFunction(() => !document.getElementById('letter').hidden, { timeout: 15000 });
+  equal(await page.evaluate(() => window.__fk.sound.theme), 'letter', 'у первого письма своя музыка');
+  equal(await text(page, '#noteNo'), 'Письмо № 1 из 2', 'подпись над письмом');
+  equal(await text(page, '#noteTitle'), CONFIG.letters[0].title, 'заголовок первого письма');
+  equal(await text(page, '#btnNoteNext'), 'Дальше · уровень 2', 'после письма — второй уровень');
+  await page.click('#btnNoteNext');
+  await waitScreen(page, 'intro');
+  equal(await text(page, '#introEyebrow'), `Уровень 2 · раунд 1 из ${PER} · ${ROUNDS[PER].gates} ворот`, 'второй уровень начинается с первого раунда');
+  equal(await text(page, '#introName'), ROUNDS[PER].name, 'первый раунд второго уровня');
+  const d = await stored(page);
+  assert(d.notes.includes(PER) && d.seenNotes.includes(PER), 'записка и письмо первого уровня открыты и прочитаны');
+  // на странице записок: десять записок и первое письмо открыты, второй уровень заперт целиком
+  await page.close();
+  const love = track(await open('love.html', { save: d }));
+  equal(await text(love, '#noteCount'), `Открыто ${PER + 1} из ${CARDS}`, 'счётчик записок');
+  equal(await love.evaluate(() => [...document.querySelectorAll('#notes .notebook')].map((b) => b.querySelectorAll('.note--locked').length)), [0, PER + 1], 'первый уровень открыт весь, второй заперт');
+});
+
+await test('финал второго уровня: записка № 20, потом второе письмо; меню предлагает играть снова', async (track) => {
   const levels = {};
   for (let i = 1; i < TOTAL; i++) levels[i] = { done: true, stars: 2, hearts: 20 };
   const page = track(await game({ save: { rounds: TOTAL, levels, notes: upTo(TOTAL - 1), seenNotes: upTo(TOTAL - 1), plays: 9 } }));
-  equal(await text(page, '#btnPlayLabel'), `Уровень ${TOTAL}`, 'главная кнопка');
+  equal(await text(page, '#btnPlayLabel'), roundLabel(TOTAL), 'главная кнопка');
   await page.click('#btnPlay');
   await waitScreen(page, 'intro');
-  assert((await text(page, '#introName')).startsWith('Дорога к'), 'название финального уровня');
-  equal(await text(page, '#introEyebrow'), `Уровень ${TOTAL} из ${TOTAL} · ${LEVELS[TOTAL - 1].gates} ворот`, 'строка над названием');
+  assert((await text(page, '#introName')).startsWith('Дорога к'), 'название финального раунда');
+  equal(await text(page, '#introEyebrow'), `Уровень 2 · раунд ${PER} из ${PER} · ${ROUNDS[TOTAL - 1].gates} ворот`, 'строка над названием');
   await page.click('#btnGo');
-  equal((await fastForward(page, 'win')).status, 'won', 'финальный уровень пройден');
+  equal((await fastForward(page, 'win')).status, 'won', 'финальный раунд пройден');
   await waitScreen(page, 'win');
-  equal(await text(page, '#btnNoteLabel'), 'Открыть письмо', 'кнопка письма');
+  equal(await text(page, '#winEyebrow'), `Уровень 2 пройден · Дорога к ${CONFIG.her.dative} · рассвет`, 'строка над победой');
+  equal(await text(page, '#btnNoteLabel'), 'Открыть записку и письмо', 'кнопка записки и письма');
   await page.click('#btnNote');
   await waitScreen(page, 'note');
-  // У финала две ступени. Сначала Мия пишет сама — конверта ещё нет.
-  const finLetter = (CONFIG.letters || []).find((l) => l.level === TOTAL);
-  assert(finLetter, 'у финала должно быть письмо в CONFIG.letters');
-  equal(await text(page, '#noteTitle'), finLetter.note.title, 'сначала записка Мии');
+  // У последнего раунда уровня две ступени. Сначала — обычная записка от Мии (двадцатая), конверта ещё нет.
+  const finNote = CONFIG.notes.find((n) => n.round === TOTAL);
+  assert(finNote && CONFIG.letters.find((l) => l.level === 2), 'у второго уровня должны быть записка № 20 и письмо');
+  equal(await text(page, '#noteNo'), `Записка № ${TOTAL} из ${CONFIG.notes.length}`, 'номер последней записки');
+  equal(await text(page, '#noteTitle'), finNote.title, 'сначала записка Мии');
   assert(!(await visible(page, '#envelope')), 'на первой ступени конверта быть не должно');
   equal(await text(page, '#btnNoteNext'), 'Распечатать письмо', 'кнопка ведёт ко второй ступени');
+  assert(!(await stored(page)).seenNotes.includes(TOTAL), 'пока конверт не вскрыт, раунд не считается прочитанным — иначе письмо можно проскочить');
   await page.click('#btnNoteNext');
   await waitScreen(page, 'note');
   // Вторая ступень: письмо приходит в запечатанном конверте — пока он закрыт, ни текста, ни кнопок не видно
@@ -506,7 +568,9 @@ await test('финал: после последнего уровня откры�
   assert(!(await visible(page, '#envelope')), 'после вскрытия конверт убирается');
   // у каждого письма своя тема: первое — 'letter', второе — 'email' (см. letterTheme в main.js)
   equal(await page.evaluate(() => window.__fk.sound.theme), 'email', 'у второго письма своя музыка');
-  equal(await text(page, '#noteNo'), `Письмо № ${(CONFIG.letters || []).length} из ${(CONFIG.letters || []).length}`, 'подпись над письмом');
+  equal(await text(page, '#noteNo'), 'Письмо № 2 из 2', 'подпись над письмом');
+  equal(await text(page, '#noteTitle'), CONFIG.letters[1].title, 'заголовок второго письма');
+  assert((await stored(page)).seenNotes.includes(TOTAL), 'вскрытый конверт отмечает раунд прочитанным');
   assert((await text(page, '#noteText')).length > 100, 'текст письма пустой');
   const top = await page.evaluate(() => {
     const scr = document.querySelector('.screen[data-name="note"]');
@@ -538,23 +602,29 @@ await test('финал: после последнего уровня откры�
   await waitScreen(page, 'menu');
   equal(await text(page, '#btnPlayLabel'), 'Играть снова', 'главная кнопка после финала');
   equal((await stored(page)).notes, upTo(TOTAL), 'все записки открыты');
+  // всё пройдено: на экране уровней оба письма получены, звёзды считаются по уровням
+  await page.click('#btnLevels');
+  await waitScreen(page, 'levels');
+  equal(await page.evaluate(() => [...document.querySelectorAll('#levelList .tier__letter')].map((e) => e.textContent.trim())), ['Письмо получено', 'Письмо получено'], 'оба письма отмечены');
+  equal(await page.evaluate(() => [...document.querySelectorAll('#levelList .tier__stars')].map((e) => e.textContent.trim()).length), 2, 'у каждого уровня свой счётчик звёзд');
+  await page.evaluate(() => window.__fk.go('menu'));
   equal(await page.evaluate(() => window.__fk.renderer.fest), false, 'в меню праздник заканчивается');
   assert(!['letter', 'email'].includes(await page.evaluate(() => window.__fk.sound.theme)), 'в меню возвращается обычная музыка');
 });
 
-await test('старое сохранение (шесть уровней): финал и письмо переезжают на последний номер, новые раунды открываются по очереди', async (track) => {
+await test('старое сохранение (шесть раундов): финал и письмо переезжают на десятый раунд первого уровня, новые раунды открываются по очереди', async (track) => {
   const old = {};
   for (let i = 1; i <= 6; i++) old[i] = { done: true, stars: i === 6 ? 2 : 3, hearts: 20 };
   const saved = { levels: old, notes: [1, 2, 3, 4, 5, 6], seenNotes: [1, 2, 3, 4, 5, 6], hearts: 300, totalHearts: 400, skins: ['super', 'hood'], skin: 'hood', plays: 12 };
   const page = track(await game({ save: saved }));
-  equal(await text(page, '#btnPlayLabel'), 'Уровень 6', 'главная кнопка зовёт в первый новый раунд');
+  equal(await text(page, '#btnPlayLabel'), 'Уровень 1 · раунд 6', 'главная кнопка зовёт в первый новый раунд');
   await page.click('#btnLevels');
   await waitScreen(page, 'levels');
   const cards = await page.evaluate(() => [...document.querySelectorAll('#levelList .level')].map((c) => `${c.disabled ? 'закрыт' : 'открыт'}:${c.querySelectorAll('.level__stars .on').length}`));
-  // Старое сохранение знало один финал — шестой. Переезжает он на ПЕРВЫЙ финал новой сетки
-  // (это уровень 10 из 20), а не на последний. Открыты: 1–5, шестой (ждёт прохождения),
-  // сам финал и следующий за ним уровень — пройденный уровень открывает соседа.
-  const firstFinal = CONFIG.letters[0].level;
+  // Старое сохранение знало один финал — шестой. Переезжает он на финал ПЕРВОГО уровня
+  // (это раунд 10 из 20), а не на последний. Открыты: 1–5, шестой (ждёт прохождения),
+  // сам финал и следующий за ним раунд — пройденный раунд открывает соседа.
+  const firstFinal = roundsOf(1).at(-1).id;
   const want = Array.from({ length: TOTAL }, (_, i) => {
     const id = i + 1;
     if (id <= 5) return 'открыт:3';
@@ -563,35 +633,37 @@ await test('старое сохранение (шесть уровней): фи�
     if (id === firstFinal + 1) return 'открыт:0';
     return 'закрыт:0';
   });
-  equal(cards, want, 'карточки уровней');
+  equal(cards, want, 'карточки раундов');
   equal(await text(page, '#starTotal'), `17/${TOTAL * 3}`, 'звёзды не потерялись');
   equal(await text(page, '.screen[data-name="menu"] [data-wallet]'), '300', 'сердечки не потерялись');
   await page.close();
 
   const love = track(await open('love.html', { save: saved }));
-  // Открыто: записки пройденных раундов + обе карточки финала, который уже проходили.
+  // Открыто: записки пройденных раундов (1–5 и финал первого уровня) + первое письмо, которое уже открывали.
   const oldDone = new Set([1, 2, 3, 4, 5, firstFinal]);
-  const openNotes = CONFIG.notes.filter((n) => oldDone.has(n.level)).length;
-  equal(await text(love, '#noteCount'), `Открыто ${openNotes + 2} из ${CARDS}`, 'счётчик записок');
-  assert(!(await love.evaluate(() => document.querySelector('#final .note').classList.contains('note--locked'))), 'письмо, которое уже открывали, остаётся открытым');
-  equal(await love.evaluate(() => document.querySelectorAll('#notes .note--locked').length), CONFIG.notes.length - openNotes, 'записки новых раундов ещё заперты');
-  // «Пройти уровень» есть только у запертых, но доступных записок: шестой раунд и 11-й
-  // (второй финал пройден, значит следующий за ним уровень открыт).
-  const reachable = [6, firstFinal + 1].map((id) => `play.html?level=${id}`);
-  equal(await love.evaluate(() => [...document.querySelectorAll('.note--locked a')].map((a) => a.getAttribute('href'))), reachable, 'кнопка «Пройти уровень» — у открытых, но ещё не пройденных раундов');
+  const openNotes = CONFIG.notes.filter((n) => oldDone.has(n.round)).length;
+  equal(openNotes, 6, 'открытых записок у старого игрока');
+  equal(await text(love, '#noteCount'), `Открыто ${openNotes + 1} из ${CARDS}`, 'счётчик записок');
+  equal(await love.evaluate(() => [...document.querySelectorAll('#notes .note--final')].map((n) => n.classList.contains('note--locked'))), [false, true], 'первое письмо, которое уже открывали, остаётся открытым; второе ждёт');
+  equal(await love.evaluate(() => document.querySelectorAll('#notes .notes .note--locked').length), CONFIG.notes.length - openNotes, 'записки новых раундов ещё заперты');
+  // «Пройти раунд» есть только у запертых, но доступных записок: шестой раунд и 11-й
+  // (финал первого уровня пройден, значит первый раунд второго уровня открыт).
+  const reachable = [6, firstFinal + 1].map((id) => `play.html?round=${id}`);
+  equal(await love.evaluate(() => [...document.querySelectorAll('.note--locked a')].map((a) => a.getAttribute('href'))), reachable, 'кнопка «Пройти раунд» — у открытых, но ещё не пройденных раундов');
 });
 
 await test('новые раунды: вступление с подсказкой, своя записка и фото из альбома', async (track) => {
   const page = track(await game({}, '?dev=1'));
-  // все обычные раунды второй главы: финалы 10 и 20 проверяются отдельно, в тестах писем
-  const newIds = LEVELS.filter((l) => l.id > 5 && !CONFIG.letters.some((x) => x.level === l.id)).map((l) => l.id);
+  // все раунды без письма: последние раунды уровней (10 и 20) проверяются отдельно, в тестах писем
+  const newIds = ROUNDS.filter((l) => l.id > 5 && !l.finale).map((l) => l.id);
   for (const id of newIds) {
-    const l = LEVELS[id - 1];
-    await page.evaluate((n) => window.__fk.startLevel(n), id);
+    const l = ROUNDS[id - 1];
+    await page.evaluate((n) => window.__fk.startRound(n), id);
     await waitScreen(page, 'intro');
     equal(await text(page, '#introName'), l.name, `название раунда ${id}`);
     equal(await text(page, '#introTip'), l.tip, `подсказка раунда ${id}`);
     equal(await page.evaluate(() => window.__fk.sim.theme), l.theme, `мир раунда ${id}`);
+    equal(await text(page, '#introEyebrow'), `${roundLabel(id)} из ${PER} · ${l.gates} ворот`, `строка над названием раунда ${id}`);
     await page.evaluate(() => {
       const fk = window.__fk;
       fk.beginPlay();
@@ -602,18 +674,18 @@ await test('новые раунды: вступление с подсказко�
     await waitScreen(page, 'win');
     await page.evaluate(() => document.getElementById('btnNote').click());
     await waitScreen(page, 'note');
-    const note = CONFIG.notes.find((n) => n.level === id);
+    const note = CONFIG.notes.find((n) => n.round === id);
     equal(await text(page, '#noteNo'), `Записка № ${id} из ${CONFIG.notes.length}`, `номер записки ${id}`);
     equal(await text(page, '#noteTitle'), note.title, `заголовок записки ${id}`);
     assert(!(await visible(page, '#envelope')), `у записки ${id} конверта нет — он только у письма`);
     await page.waitForFunction(() => { const i = document.querySelector('#notePhoto img'); return i && i.complete && i.naturalWidth > 0; }, { timeout: 15000 });
     equal(await text(page, '#notePhoto figcaption'), CONFIG.photos[id].caption, `подпись под фото ${id}`);
-    equal(await text(page, '#btnNoteNext'), `Дальше · уровень ${id + 1}`, `кнопка под запиской ${id}`);
+    equal(await text(page, '#btnNoteNext'), `Дальше · раунд ${ROUNDS[id].no}`, `кнопка под запиской ${id}`);
   }
   equal((await stored(page)).notes, newIds, 'записки новых раундов открыты');
 });
 
-await test('уровни и гардероб: шапка и кнопка «назад» видны на любом телефоне, до последней карточки можно долистать', async (track) => {
+await test('раунды и гардероб: шапка и кнопка «назад» видны на любом телефоне, до последней карточки можно долистать', async (track) => {
   const page = track(await game({ w: 390, h: 844, touch: true, save: { hearts: 900, totalHearts: 900, plays: 3 } }, '?dev=1'));
   for (const [w, h] of [[320, 568], [360, 700], [375, 812], [390, 664], [393, 740], [412, 780], [430, 800], [740, 360]]) {
     await page.setViewport({ width: w, height: h, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
@@ -626,13 +698,19 @@ await test('уровни и гардероб: шапка и кнопка «на�
         const head = scr.querySelector('.panel__head').getBoundingClientRect();
         const back = scr.querySelector('.iconbtn').getBoundingClientRect();
         scr.scrollTop = scr.scrollHeight;
-        const last = [...scr.querySelectorAll('li')].pop().getBoundingClientRect();
+        // последнее на экране уровней — плашка письма второго уровня, в гардеробе — последний облик
+        const last = [...scr.querySelectorAll('li, .tier__letter')].pop().getBoundingClientRect();
         scr.scrollTop = 0;
         return { head: Math.round(head.top), back: Math.round(back.top), lastBottom: Math.round(last.bottom), vh: innerHeight, n: scr.querySelectorAll('li').length };
       }, name);
       assert(m.head >= 0 && m.back >= 0, `${name} ${w}×${h}: шапка уехала за верх экрана: ${JSON.stringify(m)}`);
       assert(m.lastBottom <= m.vh + 1, `${name} ${w}×${h}: до последней карточки не долистать: ${JSON.stringify(m)}`);
-      if (name === 'levels') equal(m.n, TOTAL, 'карточек уровней');
+      if (name === 'levels') equal(m.n, TOTAL, 'карточек раундов');
+      if (name === 'levels') {
+        // заголовки уровней и карточки не вылезают за края панели
+        const wide = await page.evaluate(() => [...document.querySelectorAll('#levelList .tier__head, #levelList .level, #levelList .tier__letter')].filter((e) => { const r = e.getBoundingClientRect(); return r.left < -1 || r.right > innerWidth + 1; }).length);
+        equal(wide, 0, `levels ${w}×${h}: что-то вылезло за край экрана`);
+      }
     }
     await page.evaluate(() => window.__fk.go('menu'));
   }
@@ -667,7 +745,7 @@ await test('меню: Мия здоровается и отвечает на к�
   assert(await page.evaluate(() => document.getElementById('bubble').hidden), 'вне меню облачка быть не должно');
 });
 
-await test('записка уровня: фото на память и текст сразу, без конверта', async (track) => {
+await test('записка раунда: фото на память и текст сразу, без конверта', async (track) => {
   const page = track(await game());
   await page.click('#btnPlay');
   await page.click('#btnGo');
@@ -724,6 +802,11 @@ await test('бесконечный режим: одна жизнь, счёт, р
   assert(await visible(page, '#btnPause'), 'кнопка паузы на месте');
   const paused = await page.evaluate(() => document.getElementById('btnPause').getBoundingClientRect().right);
   assert(paused > 330, 'кнопка паузы должна остаться у правого края');
+  // пока второй уровень закрыт, его миры в бесконечном режиме не показываются; первый мир — всегда гостиная
+  const first = roundsOf(1).map((r) => r.theme);
+  const worlds = await page.evaluate(() => window.__fk.sim.worlds);
+  equal(worlds[0], 'living', 'забег начинается в гостиной');
+  equal([...worlds].sort(), [...first].sort(), 'в забеге — только миры первого уровня');
   const run = await page.evaluate(() => {
     const sim = window.__fk.sim;
     sim.flap();
@@ -794,17 +877,23 @@ await test('звук: кнопка в меню выключает всё, нас
   equal([d.sound, d.music], [false, true], 'музыку можно включить отдельно');
 });
 
-await test('адреса: ?level=N, ?dev=1, ?reset=1', async (track) => {
-  const locked = track(await game({}, '?level=4'));
-  equal(await screen(locked), 'menu', 'закрытый уровень по ссылке не открывается');
+await test('адреса: ?round=N (и старое ?level=N), ?dev=1, ?reset=1', async (track) => {
+  const locked = track(await game({}, '?round=4'));
+  equal(await screen(locked), 'menu', 'закрытый раунд по ссылке не открывается');
   await locked.close(); // каждая открытая вкладка рисует игру — лишние закрываем сразу
 
-  const open2 = track(await game({ save: { levels: { 1: { done: true, stars: 1, hearts: 3 } }, notes: [1], plays: 1 }, expect: 'intro' }, '?level=2'));
-  equal(await text(open2, '#introName'), 'Кухня', 'открытый уровень по ссылке');
+  const open2 = track(await game({ save: { levels: { 1: { done: true, stars: 1, hearts: 3 } }, notes: [1], plays: 1 }, expect: 'intro' }, '?round=2'));
+  equal(await text(open2, '#introName'), 'Кухня', 'открытый раунд по ссылке');
   await open2.close();
 
-  const dev = track(await game({ expect: 'intro' }, '?dev=1&level=5'));
-  equal(await text(dev, '#introName'), 'Зимняя сказка', '?dev=1 открывает любой уровень');
+  // ссылки прежней версии (?level=N) продолжают работать: N — номер раунда подряд
+  const legacy = track(await game({ save: { levels: { 1: { done: true, stars: 1, hearts: 3 } }, notes: [1], plays: 1 }, expect: 'intro' }, '?level=2'));
+  equal(await text(legacy, '#introName'), 'Кухня', 'старый адрес ?level=2');
+  await legacy.close();
+
+  const dev = track(await game({ expect: 'intro' }, '?dev=1&round=15'));
+  equal(await text(dev, '#introName'), 'Двор', '?dev=1 открывает любой раунд');
+  equal(await text(dev, '#introEyebrow'), `Уровень 2 · раунд 5 из ${PER} · ${ROUNDS[14].gates} ворот`, 'раунд 15 — это пятый раунд второго уровня');
   await dev.close();
 
   const reset = track(await game({ save: { hearts: 77, totalHearts: 77, levels: { 1: { done: true, stars: 3, hearts: 9 } }, notes: [1], plays: 4 } }, '?reset=1'));
@@ -860,7 +949,7 @@ await test('стресс: все события, темы, облики и зв�
     const errors = [];
     sound.unlock();
     if (!sound.ctx) return { errors: ['AudioContext не создан'], state: null };
-    const names = ['flap', 'heart', 'streak', 'streakEnd', 'near', 'purr', 'seal', 'envelope', 'photo', 'fish', 'power', 'powerEnd', 'pop', 'yarn', 'squeak', 'plop', 'clear', 'croak', 'shield', 'hit', 'gate', 'warn', 'wind', 'win', 'lose', 'star', 'click', 'buy', 'nope', 'meow', 'paper', 'нет-такого'];
+    const names = ['flap', 'heart', 'streak', 'streakEnd', 'near', 'purr', 'seal', 'envelope', 'photo', 'fish', 'power', 'powerEnd', 'pop', 'yarn', 'squeak', 'plop', 'clear', 'croak', 'shield', 'hit', 'gate', 'warn', 'wind', 'win', 'lose', 'star', 'click', 'buy', 'nope', 'meow', 'paper', 'buzz', 'pop2', 'coo', 'crumble', 'clank', 'fizz', 'whistle', 'thunder', 'windwarn', 'нет-такого'];
     for (const n of names) {
       try {
         sound.play(n, { streak: 37 });
@@ -897,17 +986,17 @@ await test('стресс: все события, темы, облики и зв�
       errors.push('duck/sleep/wake: ' + e.message);
     }
     return { errors, state: sound.ctx.state, freq: sound.musFilter.frequency.value };
-  }, LEVELS.map((l) => l.theme));
+  }, ROUNDS.map((l) => l.theme));
   equal(audio.errors, [], 'звук');
 
-  // картинка: каждый уровень и бесконечный режим, каждое событие, обычный режим и «уменьшить движение»
+  // картинка: каждый раунд и бесконечный режим, каждое событие, обычный режим и «уменьшить движение»
   // По одному забегу за вызов: в браузере без видеокарты отрисовка медленная.
   const drawRun = (label, id) => page.evaluate(async (label, id) => {
     const fk = window.__fk;
     const r = fk.renderer;
     const errors = [];
     fk.freeze(true); // рисуем сами, чтобы игровой цикл не мешал
-    const all = ['start', 'flap', 'heart', 'streak', 'streakEnd', 'near', 'fish', 'pop', 'power', 'powerEnd', 'shieldBreak', 'gate', 'warn', 'wind', 'hit', 'splash', 'clear', 'croak', 'theme', 'win', 'lose', 'dying', 'нет-такого'];
+    const all = ['start', 'flap', 'heart', 'streak', 'streakEnd', 'near', 'fish', 'pop', 'power', 'powerEnd', 'shieldBreak', 'gate', 'warn', 'wind', 'hit', 'splash', 'clear', 'croak', 'coo', 'windWarn', 'suck', 'steam', 'lightning', 'theme', 'win', 'lose', 'dying', 'нет-такого'];
     const run = (label, start) => {
       for (const calm of [false, true]) {
         r.reduceMotion = calm;
@@ -928,7 +1017,7 @@ await test('стресс: все события, темы, облики и зв�
             sim.step(1 / 120);
             for (const ev of sim.events) { seen.add(ev.type); r.handle(ev, sim); }
             sim.events.length = 0;
-            if (i % 60 === 0) r.draw(sim, 0.05); // кадр раз в полсекунды игрового времени: уровней десять, а отрисовка без видеокарты медленная
+            if (i % 60 === 0) r.draw(sim, 0.05); // кадр раз в полсекунды игрового времени: раундов десять, а отрисовка без видеокарты медленная
           }
           // события, которые в этом забеге не встретились, — с полями и без
           for (const type of all) {
@@ -952,14 +1041,14 @@ await test('стресс: все события, темы, облики и зв�
         }
       }
     };
-    if (id) run(label, () => { fk.startLevel(id); fk.beginPlay(); });
+    if (id) run(label, () => { fk.startRound(id); fk.beginPlay(); });
     else run(label, () => fk.startEndless());
     r.reduceMotion = false;
     fk.go('menu');
     fk.freeze(false);
     return errors;
   }, label, id);
-  for (let id = 1; id <= TOTAL; id++) equal(await drawRun(`уровень ${id}`, id), [], `отрисовка, уровень ${id}`);
+  for (let id = 1; id <= TOTAL; id++) equal(await drawRun(`раунд ${id}`, id), [], `отрисовка, раунд ${id}`);
   equal(await drawRun('бесконечный', 0), [], 'отрисовка, бесконечный режим');
 
   // каждый облик загружается и рисуется
@@ -1011,7 +1100,7 @@ await test('сломанный звук не мешает играть', async (
   await page.keyboard.press('Space');
   await page.waitForFunction(() => window.__fk.sim.status === 'playing', { timeout: 15000 });
   equal(await page.evaluate(() => window.__fk.sound.ctx), null, 'звука нет');
-  equal((await fastForward(page, 'win')).status, 'won', 'уровень проходится и без звука');
+  equal((await fastForward(page, 'win')).status, 'won', 'раунд проходится и без звука');
   await waitScreen(page, 'win');
 
   // звук есть, но ломается посреди игры: событие всё равно обрабатывается до конца
@@ -1040,7 +1129,7 @@ await test('конверт с письмом помещается на мале�
   const toLetter = async (page) => {
     await page.evaluate((last) => {
       const fk = window.__fk;
-      fk.startLevel(last);
+      fk.startRound(last);
       fk.beginPlay();
       fk.sim.flap();
       fk.sim.status = 'won';

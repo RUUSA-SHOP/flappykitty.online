@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <title>Играть · Flappy Kitty</title>
-  <meta name="description" content="Flappy Kitty — Мия летит через двадцать уровней и собирает сердечки.">
+  <meta name="description" content="Flappy Kitty — Мия летит через два уровня по десять раундов и собирает сердечки.">
   <!-- Сайт личный: просим поисковики его не индексировать. -->
   <meta name="robots" content="noindex">
   <meta name="theme-color" content="#3a1d2e">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ru_RU">
   <meta property="og:title" content="Flappy Kitty — Мия научилась летать">
-  <meta property="og:description" content="Двадцать уровней, целое небо сердечек и записка после каждого.">
+  <meta property="og:description" content="Два уровня по десять раундов, целое небо сердечек и записка после каждого раунда.">
   <meta property="og:url" content="https://miagpt.github.io/flappykitty.online/play.html">
   <meta property="og:image" content="https://miagpt.github.io/flappykitty.online/assets/img/og.jpg">
   <meta name="twitter:card" content="summary_large_image">
@@ -115,7 +115,7 @@
     </nav>
   </section>
 
-  <!-- ===== уровни ===== -->
+  <!-- ===== уровни: два уровня, в каждом десять раундов ===== -->
   <section class="screen screen--list" data-name="levels" hidden>
     <div class="panel panel--wide">
       <header class="panel__head">
@@ -123,7 +123,7 @@
         <h2>Уровни</h2>
         <div class="starcount" aria-label="Звёзд собрано"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg><span id="starTotal">0/60</span></div>
       </header>
-      <ol class="levels" id="levelList"></ol>
+      <div class="tiers" id="levelList"></div>
     </div>
   </section>
 
@@ -135,15 +135,15 @@
         <h2>Гардероб</h2>
         <div class="wallet wallet--inline" aria-label="Сердечек в кошельке"><svg class="icon" aria-hidden="true"><use href="#i-heart"/></svg><span data-wallet>0</span></div>
       </header>
-      <p class="panel__note">Облики покупаются за сердечки. Сердечки остаются с тобой, даже если уровень не пройден.</p>
+      <p class="panel__note">Облики покупаются за сердечки. Сердечки остаются с тобой, даже если раунд не пройден.</p>
       <ul class="skins" id="skinList"></ul>
     </div>
   </section>
 
-  <!-- ===== перед уровнем ===== -->
+  <!-- ===== перед раундом ===== -->
   <section class="screen screen--bottom" data-name="intro" hidden>
     <div class="panel">
-      <p class="eyebrow" id="introEyebrow">Уровень 1</p>
+      <p class="eyebrow" id="introEyebrow">Уровень 1 · раунд 1</p>
       <h2 class="panel__title" id="introName">Гостиная</h2>
       <p id="introStory"></p>
       <p class="tip" id="introTip"></p>
@@ -174,7 +174,7 @@
   <!-- ===== победа ===== -->
   <section class="screen screen--veil" data-name="win" hidden>
     <div class="panel">
-      <p class="eyebrow" id="winEyebrow">Уровень пройден</p>
+      <p class="eyebrow" id="winEyebrow">Раунд пройден</p>
       <h2 class="panel__title panel__title--script">Поцелуй!</h2>
       <div class="stars" id="winStars" aria-label="Звёзды">
         <svg class="icon" aria-hidden="true"><use href="#i-star"/></svg>
@@ -193,7 +193,7 @@
 
   <!-- ===== записка ===== -->
   <section class="screen screen--veil" data-name="note" hidden>
-    <!-- Финальное письмо приходит в запечатанном конверте; записки уровней — сразу листком. -->
+    <!-- Письмо в конце уровня приходит в запечатанном конверте; записки раундов — сразу листком. -->
     <button class="envelope" id="envelope" type="button" hidden aria-label="Открыть письмо">
       <span class="envelope__body" aria-hidden="true">
         <span class="envelope__back"></span>

@@ -409,11 +409,31 @@ h3 {
   }
 }
 
-/* ---------- уровни ---------- */
+/* ---------- уровни и раунды ---------- */
+
+.lvl-level + .lvl-level {
+  margin-top: clamp(36px, 6vw, 64px);
+  padding-top: clamp(28px, 5vw, 48px);
+  border-top: 2px dashed rgba(58, 29, 46, 0.22);
+}
+.lvl-level__head {
+  display: grid;
+  gap: 6px;
+  max-width: 44rem;
+  margin-bottom: 22px;
+}
+.lvl-level__head p {
+  margin: 0;
+}
+.lvl-level__name {
+  font-size: clamp(1.5rem, 3.6vw, 2.1rem);
+  font-weight: 900;
+  line-height: 1.15;
+}
 
 .levels-strip {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr)); /* десять уровней — два ряда по пять */
+  grid-template-columns: repeat(5, minmax(0, 1fr)); /* десять раундов — два ряда по пять */
   gap: 16px;
   margin: 0;
   padding: 0;
@@ -437,19 +457,6 @@ h3 {
   object-fit: cover;
   object-position: 50% 42%;
 }
-.lvl__shot--soon {
-  display: grid;
-  place-items: center;
-  /* уровень без кадра: мягкая заливка, чтобы карточка не выглядела сломанной */
-  background: linear-gradient(160deg, #fbe8ec 0%, #f7f1fb 55%, #eef4fb 100%);
-}
-.lvl__shot--soon::after {
-  content: "Кадр скоро";
-  font-size: 0.82rem;
-  letter-spacing: 0.04em;
-  color: #a98a97;
-}
-
 .lvl__n {
   position: absolute;
   left: 10px;
@@ -1123,6 +1130,29 @@ a.world:hover {
 
 /* ---------- записки ---------- */
 
+/* уровень: заголовок, десять записок, под ними письмо */
+.notebook + .notebook {
+  margin-top: clamp(48px, 8vw, 80px);
+  padding-top: clamp(36px, 6vw, 56px);
+  border-top: 2px dashed rgba(58, 29, 46, 0.22);
+}
+.notebook__head {
+  margin-bottom: 26px;
+}
+.notebook__head h2 {
+  margin: 4px 0 6px;
+}
+.notebook__about {
+  margin: 0;
+  color: var(--plum-soft);
+}
+.notebook__letter {
+  margin-top: clamp(36px, 6vw, 56px);
+}
+.notebook:last-child {
+  margin-bottom: clamp(48px, 8vw, 96px);
+}
+
 .notes {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -1246,14 +1276,6 @@ a.world:hover {
   background-position: 0 calc(36px - var(--row) * 0.14);
   transform: rotate(-0.6deg);
 }
-.note__sep {
-  border: 0;
-  height: 1px;
-  max-width: 44rem;
-  margin: 28px auto;
-  background: linear-gradient(90deg, transparent, rgba(180, 130, 150, 0.35), transparent);
-}
-
 .note--final.note--locked {
   --row: 1.45rem;
   min-height: 240px;

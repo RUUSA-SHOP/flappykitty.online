@@ -57,7 +57,7 @@
 .screen--veil {
   background: rgba(58, 29, 46, 0.58);
 }
-/* Длинные списки (уровни, гардероб) начинаются сверху и прокручиваются вниз. Если их центрировать,
+/* Длинные списки (раунды, гардероб) начинаются сверху и прокручиваются вниз. Если их центрировать,
    высокая панель вылезает за верхний край — шапку и кнопку «назад» не достать прокруткой. */
 .screen--list {
   justify-content: flex-start;
@@ -494,7 +494,91 @@
   }
 }
 
-/* ---------- уровни ---------- */
+/* ---------- уровни: два блока, в каждом десять раундов и письмо ---------- */
+
+.tiers {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 26px;
+  margin-top: 10px;
+}
+.tier {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+.tier + .tier {
+  padding-top: 22px;
+  border-top: 2px dashed rgba(58, 29, 46, 0.22);
+}
+.tier__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 12px;
+}
+.tier__head p,
+.tier__head h3 {
+  margin: 0;
+}
+.tier__no {
+  font-size: 0.8125rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rose-deep);
+}
+.tier__name {
+  grid-column: 1;
+  font-size: 1.3rem;
+  font-weight: 900;
+  line-height: 1.15;
+}
+.tier__stars {
+  display: inline-flex;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-items: center;
+  gap: 4px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.tier__stars .icon {
+  color: #f0a92b;
+}
+.tier__about {
+  grid-column: 1 / -1;
+  font-size: 0.9rem;
+  color: var(--plum-soft);
+}
+.tier__letter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--plum-soft);
+  border: 2px dashed rgba(58, 29, 46, 0.3);
+  border-radius: 14px;
+}
+.tier__letter .icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+.tier__letter.is-got {
+  color: var(--rose-deep);
+  background: var(--blush);
+  border: 2px solid var(--rose);
+}
+.tier.is-locked .tier__name,
+.tier.is-locked .tier__stars {
+  opacity: 0.6;
+}
+
+/* ---------- карточки раундов ---------- */
 
 .levels {
   display: grid;
@@ -573,6 +657,39 @@
 .level[data-theme='love'] .level__art {
   color: #fff;
   background: linear-gradient(160deg, #7a5aa8, #ee86a2 60%, #ffc2a0);
+}
+.level[data-theme='attic'] .level__art {
+  background: linear-gradient(160deg, #f1dcb8, #c79f6e 65%, #8a6a4a);
+}
+.level[data-theme='vacuum'] .level__art {
+  background: linear-gradient(160deg, #f6f9fc, #cfdbe8 70%, #9fb2c6);
+}
+.level[data-theme='yarn'] .level__art {
+  background: linear-gradient(160deg, #fff1e2, #f8cdb0 55%, #b9e0c8);
+}
+.level[data-theme='bath'] .level__art {
+  background: linear-gradient(160deg, #f1fbfe, #bfe6f0 60%, #f6b8c8);
+}
+.level[data-theme='street'] .level__art {
+  background: linear-gradient(160deg, #bfe4fb, #e3f3d2 60%, #9ccf8a);
+}
+.level[data-theme='bakery'] .level__art {
+  background: linear-gradient(160deg, #fff3dc, #f6cf94 60%, #e0a860);
+}
+.level[data-theme='toybox'] .level__art {
+  background: linear-gradient(160deg, #f4eeff, #cdbbf0 55%, #f6b8c8);
+}
+.level[data-theme='fireplace'] .level__art {
+  color: #ffe3c8;
+  background: linear-gradient(160deg, #3a1a12, #a8431f 60%, #ffb347);
+}
+.level[data-theme='storm'] .level__art {
+  color: #e8eef8;
+  background: linear-gradient(160deg, #1f2a3f, #55627c 65%, #aeb9d0);
+}
+.level[data-theme='dawn'] .level__art {
+  color: #fff;
+  background: linear-gradient(160deg, #6b4f9a, #f08fb0 55%, #ffd9a8);
 }
 .level__body {
   display: grid;

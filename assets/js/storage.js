@@ -3,16 +3,16 @@
 
 const KEY = 'flappykitty.save.v1';
 
-const ROUNDS = 10; // столько раундов в сюжете; до этого их было шесть
+const FIRST_FINAL = 10; // номер последнего раунда первого уровня; в самой первой версии игры раундов было шесть
 
 const DEFAULTS = {
   v: 1,
-  rounds: ROUNDS, // для скольких раундов сделана запись (см. перенос старых записей в read)
+  rounds: FIRST_FINAL, // для скольких раундов сделана запись (см. перенос старых записей в read)
   hearts: 0, // «кошелёк» сердечек — общая валюта вселенной
   totalHearts: 0, // сколько собрано за всё время
   best: 0, // рекорд бесконечного режима
-  levels: {}, // { [id]: { stars, hearts, done } }
-  notes: [], // id открытых записок (номер уровня)
+  levels: {}, // { [номер раунда 1–20]: { stars, hearts, done } } — имя поля старое, менять его нельзя: это сохранения игроков
+  notes: [], // id открытых записок (номер раунда)
   seenNotes: [], // прочитанные записки
   skins: ['super'],
   skin: 'super',
@@ -57,12 +57,12 @@ function read() {
   // Запись осталась от версии с шестью раундами. Тогда шестым был финал — «Дорога к …» с письмом,
   // теперь он десятый. Переносим его результат и открытое письмо на новый номер, чтобы ничего не пропало
   // и чтобы новые раунды 6–9 не оказались «пройденными» сами собой. Раунды 1–5 остаются на своих местах.
-  if (raw && !(data.rounds >= ROUNDS)) {
+  if (raw && !(data.rounds >= FIRST_FINAL)) {
     if (levels[6]) {
-      levels[ROUNDS] = levels[6];
+      levels[FIRST_FINAL] = levels[6];
       delete levels[6];
     }
-    const move = (list) => Array.from(new Set(list.map((id) => (id === 6 ? ROUNDS : id))));
+    const move = (list) => Array.from(new Set(list.map((id) => (id === 6 ? FIRST_FINAL : id))));
     notes = move(notes);
     seenNotes = move(seenNotes);
   }
@@ -122,8 +122,8 @@ export const save = {
     write();
     return true;
   },
-  /** Записать результат уровня. Возвращает true, если уровень пройден впервые. */
-  completeLevel(id, stars, hearts) {
+  /** Записать результат раунда. Возвращает true, если раунд пройден впервые. */
+  completeRound(id, stars, hearts) {
     const d = read();
     const prev = d.levels[id];
     const first = !prev || !prev.done;
@@ -136,15 +136,15 @@ export const save = {
     write();
     return first;
   },
-  isLevelOpen(id) {
+  isRoundOpen(id) {
     if (id <= 1) return true;
     const levels = read().levels;
-    // уже пройденный уровень открыт всегда: у старых игроков финал пройден, а раунды перед ним — ещё нет
+    // уже пройденный раунд открыт всегда: у старых игроков финал пройден, а раунды перед ним — ещё нет
     if (levels[id] && levels[id].done) return true;
     const prev = levels[id - 1];
     return !!(prev && prev.done);
   },
-  nextLevel(total) {
+  nextRound(total) {
     const d = read();
     for (let i = 1; i <= total; i++) if (!d.levels[i] || !d.levels[i].done) return i;
     return total;

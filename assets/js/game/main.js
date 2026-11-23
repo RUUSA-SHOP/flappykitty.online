@@ -2,7 +2,7 @@
 
 import { CONFIG, setSignature, isBirthday } from '../config.js';
 import { save } from '../storage.js';
-import { LEVELS, SKINS, POWERUPS } from './levels.js';
+import { LEVELS, ROUNDS, ROUNDS_PER_LEVEL, roundsOf, SKINS, POWERUPS } from './levels.js';
 import { Sim } from './sim.js';
 import { Renderer } from './render.js';
 import { Sound } from './audio.js';
@@ -12,7 +12,7 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const STEP = 1 / 120;
 const params = new URLSearchParams(location.search);
-const DEV = params.has('dev'); // play.html?dev=1 — все уровни открыты (для проверки)
+const DEV = params.has('dev'); // play.html?dev=1 — все раунды открыты (для проверки)
 
 const stage = $('#stage');
 const canvas = $('#game');
@@ -29,7 +29,7 @@ const LOSE_LINES = [
 let sim = null;
 let screen = 'loading';
 let mode = 'story';
-let levelId = 1;
+let roundId = 1;
 let acc = 0;
 let last = 0;
 let pendingTimer = null;
@@ -67,7 +67,7 @@ async function applySkin(id) {
 async function boot() {
   // play.html?reset=1 — начать с чистого листа (удобно перед тем, как дарить)
   if (params.has('reset')) {
-    if (window.confirm('Сбросить весь прогресс: уровни, сердечки, облики и записки?')) save.reset();
+    if (window.confirm('Сбросить весь прогресс: раунды, сердечки, облики и записки?')) save.reset();
     params.delete('reset');
     const q = params.toString();
     history.replaceState(null, '', location.pathname + (q ? '?' + q : ''));
@@ -87,8 +87,9 @@ async function boot() {
   bind();
   resize();
   attract();
-  const jump = parseInt(params.get('level'), 10);
-  if (jump && (DEV || save.isLevelOpen(jump)) && LEVELS[jump - 1]) startLevel(jump);
+  // ?round=N — номер раунда подряд, от 1 до 20; ?level=N — то же самое, старое имя (ссылки из прежней версии)
+  const jump = parseInt(params.get('round') || params.get('level'), 10);
+  if (jump && (DEV || save.isRoundOpen(jump)) && ROUNDS[jump - 1]) startRound(jump);
   else go('menu');
   last = performance.now();
   requestAnimationFrame(frame);
@@ -145,10 +146,10 @@ function go(name) {
 function refreshMenu() {
   const d = save.data;
   $$('[data-wallet]').forEach((e) => (e.textContent = d.hearts));
-  const allDone = LEVELS.every((l) => d.levels[l.id] && d.levels[l.id].done);
-  const next = save.nextLevel(LEVELS.length);
+  const allDone = ROUNDS.every((l) => d.levels[l.id] && d.levels[l.id].done);
+  const next = save.nextRound(ROUNDS.length);
   const started = Object.keys(d.levels).length > 0;
-  $('#btnPlayLabel').textContent = allDone ? 'Играть снова' : started ? `Уровень ${next}` : 'Играть';
+  $('#btnPlayLabel').textContent = allDone ? 'Играть снова' : started ? roundLabel(ROUNDS[next - 1]) : 'Играть';
   const endlessOpen = DEV || (d.levels[1] && d.levels[1].done);
   const be = $('#btnEndless');
   be.setAttribute('aria-disabled', endlessOpen ? 'false' : 'true');
@@ -227,8 +228,8 @@ function keepAwake(on) {
 
 /** Фоновая сцена для меню: Мия парит по центру, мир медленно плывёт. */
 function attract() {
-  const next = save.nextLevel(LEVELS.length);
-  sim = new Sim({ mode: 'story', levelId: next, viewW: renderer.viewW, seed: 7 });
+  const next = save.nextRound(ROUNDS.length);
+  sim = new Sim({ mode: 'story', roundId: next, viewW: renderer.viewW, seed: 7 });
   sim.gates = [];
   sim.items = [];
   sim.finishX = null;
@@ -239,48 +240,104 @@ function attract() {
   sound.setTheme(sim.theme);
 }
 
+/** Экран «Уровни»: два уровня, в каждом десять раундов и письмо в конце. */
 function renderLevels() {
   const d = save.data;
-  const list = $('#levelList');
-  list.innerHTML = '';
-  for (const l of LEVELS) {
-    const open = DEV || save.isLevelOpen(l.id);
-    const st = (d.levels[l.id] && d.levels[l.id].stars) || 0;
-    const li = document.createElement('li');
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'level';
-    b.dataset.theme = l.theme;
-    b.disabled = !open;
-    b.setAttribute('aria-label', `Уровень ${l.id}. ${levelName(l)}. ${open ? `Звёзд: ${st} из 3` : 'Закрыт'}`);
-    b.innerHTML = `
-      <span class="level__art"><span>${l.id}</span>${open ? '' : '<svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>'}</span>
-      <span class="level__body">
-        <span class="level__name"></span>
-        <span class="level__tag"></span>
-        <span class="level__stars" aria-hidden="true">${[1, 2, 3].map((n) => `<svg class="icon${st >= n ? ' on' : ''}"><use href="#i-star"/></svg>`).join('')}</span>
-      </span>`;
-    $('.level__name', b).textContent = levelName(l);
-    $('.level__tag', b).textContent = open ? l.tagline : `Пройди уровень ${l.id - 1}`;
-    b.addEventListener('click', () => {
-      sound.play('click');
-      startLevel(l.id);
-    });
-    li.appendChild(b);
-    list.appendChild(li);
+  const box = $('#levelList');
+  box.innerHTML = '';
+  const done = (id) => !!(d.levels[id] && d.levels[id].done);
+  for (const lv of LEVELS) {
+    const rounds = roundsOf(lv.id);
+    const first = rounds[0];
+    const last = rounds[rounds.length - 1];
+    const open = DEV || save.isRoundOpen(first.id);
+    const stars = rounds.reduce((n, r) => n + ((d.levels[r.id] && d.levels[r.id].stars) || 0), 0);
+    const passed = rounds.filter((r) => done(r.id)).length;
+    const sec = document.createElement('section');
+    sec.className = open ? 'tier' : 'tier is-locked';
+    sec.dataset.level = lv.id;
+    sec.setAttribute('aria-label', `Уровень ${lv.id}. ${lv.name}`);
+    sec.innerHTML = `
+      <header class="tier__head">
+        <p class="tier__no">Уровень ${lv.id}</p>
+        <h3 class="tier__name"></h3>
+        <p class="tier__stars" aria-label="Звёзд: ${stars} из ${rounds.length * 3}"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg>${stars}/${rounds.length * 3}</p>
+        <p class="tier__about"></p>
+      </header>
+      <ol class="levels"></ol>
+      <p class="tier__letter${done(last.id) ? ' is-got' : ''}"><svg class="icon" aria-hidden="true"><use href="#i-mail"/></svg><span></span></p>`;
+    $('.tier__name', sec).textContent = lv.name;
+    $('.tier__about', sec).textContent = open
+      ? `Раундов пройдено: ${passed} из ${rounds.length}`
+      : `Откроется после письма из уровня ${lv.id - 1}`;
+    $('.tier__letter span', sec).textContent = done(last.id) ? 'Письмо получено' : `Письмо — после раунда ${last.no}`;
+    const list = $('.levels', sec);
+    for (const l of rounds) {
+      const can = DEV || save.isRoundOpen(l.id);
+      const st = (d.levels[l.id] && d.levels[l.id].stars) || 0;
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'level';
+      b.dataset.theme = l.theme;
+      b.dataset.round = l.id;
+      b.disabled = !can;
+      b.setAttribute('aria-label', `Уровень ${l.level}, раунд ${l.no}. ${roundName(l)}. ${can ? `Звёзд: ${st} из 3` : 'Закрыт'}`);
+      b.innerHTML = `
+        <span class="level__art"><span>${l.no}</span>${can ? '' : '<svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>'}</span>
+        <span class="level__body">
+          <span class="level__name"></span>
+          <span class="level__tag"></span>
+          <span class="level__stars" aria-hidden="true">${[1, 2, 3].map((n) => `<svg class="icon${st >= n ? ' on' : ''}"><use href="#i-star"/></svg>`).join('')}</span>
+        </span>`;
+      $('.level__name', b).textContent = roundName(l);
+      $('.level__tag', b).textContent = can ? l.tagline : l.no === 1 ? `Пройди уровень ${l.level - 1}` : `Пройди раунд ${l.no - 1}`;
+      b.addEventListener('click', () => {
+        sound.play('click');
+        startRound(l.id);
+      });
+      li.appendChild(b);
+      list.appendChild(li);
+    }
+    box.appendChild(sec);
   }
-  $('#starTotal').textContent = `${save.totalStars()}/${LEVELS.length * 3}`;
+  $('#starTotal').textContent = `${save.totalStars()}/${ROUNDS.length * 3}`;
 }
 
-function levelName(l) {
+function roundName(l) {
   // у финалов название собирается из имени Насти, чтобы смена имени не оставила «Дорога к Насте» в коде
   if (l.theme === 'love') return `Дорога к ${CONFIG.her.dative}`;
   if (l.theme === 'dawn') return `Дорога к ${CONFIG.her.dative} · рассвет`;
   return l.name;
 }
 
-/** Письмо, которое открывается после этого уровня (или null). Писем два: после 10-го и после 20-го. */
-const letterFor = (id) => (CONFIG.letters || []).find((l) => l.level === id) || null;
+/** «Уровень 2 · раунд 3» — так раунд называется на всех экранах. */
+const roundLabel = (r) => `Уровень ${r.level} · раунд ${r.no}`;
+
+/** Письмо, которое приходит после этого раунда (или null). Письмо уровня — после его последнего раунда. */
+function letterFor(id) {
+  const r = ROUNDS[id - 1];
+  return (r && r.finale && (CONFIG.letters || []).find((l) => l.level === r.level)) || null;
+}
+
+/** Подпись кнопки «дальше» после раунда: следующий раунд, следующий уровень или меню. */
+function nextLabel(id) {
+  const next = ROUNDS[id];
+  if (!next) return 'В меню';
+  return next.level !== ROUNDS[id - 1].level ? `Дальше · уровень ${next.level}` : `Дальше · раунд ${next.no}`;
+}
+
+/** Название мира для всплывающей подписи в бесконечном режиме. */
+function worldName(theme) {
+  const r = ROUNDS.find((x) => x.theme === theme);
+  return r ? roundName(r) : THEMES[theme].name;
+}
+
+/** Миры бесконечного режима: первый уровень — всегда, второй — когда он открыт (чтобы не показывать его заранее). */
+function endlessWorlds() {
+  const open = DEV || save.isRoundOpen(ROUNDS_PER_LEVEL + 1);
+  return ROUNDS.filter((r) => r.level === 1 || open).map((r) => r.theme);
+}
 
 function renderSkins() {
   const d = save.data;
@@ -350,20 +407,20 @@ function bankHearts() {
   sim.banked = sim.hearts;
 }
 
-function startLevel(id) {
+function startRound(id) {
   clearTimeout(pendingTimer);
   bankHearts();
   mode = 'story';
-  levelId = id;
-  const l = LEVELS[id - 1];
-  sim = new Sim({ mode: 'story', levelId: id, viewW: renderer.viewW, seed: (Date.now() % 1e9) + id });
+  roundId = id;
+  const l = ROUNDS[id - 1];
+  sim = new Sim({ mode: 'story', roundId: id, viewW: renderer.viewW, seed: (Date.now() % 1e9) + id });
   renderer.particles.length = 0;
-  renderer.finishLabel = id === LEVELS.length ? CONFIG.her.name : '';
+  renderer.finishLabel = l.finale ? CONFIG.her.name : ''; // у большого сердца в конце каждого уровня — её имя
   sound.setTheme(l.theme);
-  $('#introEyebrow').textContent = `Уровень ${id} из ${LEVELS.length} · ${l.gates} ворот`;
-  $('#introName').textContent = levelName(l);
+  $('#introEyebrow').textContent = `${roundLabel(l)} из ${ROUNDS_PER_LEVEL} · ${l.gates} ворот`;
+  $('#introName').textContent = roundName(l);
   $('#introStory').textContent = l.story;
-  $('#introTip').textContent = l.tip || ''; // подсказка живёт в самом уровне (levels.js), а не привязана к номеру
+  $('#introTip').textContent = l.tip || ''; // подсказка живёт в самом раунде (levels.js), а не привязана к номеру
   resetHud();
   go('intro');
 }
@@ -372,7 +429,7 @@ function startEndless() {
   clearTimeout(pendingTimer);
   bankHearts();
   mode = 'endless';
-  sim = new Sim({ mode: 'endless', viewW: renderer.viewW, seed: Date.now() % 1e9 });
+  sim = new Sim({ mode: 'endless', viewW: renderer.viewW, seed: Date.now() % 1e9, worlds: endlessWorlds() });
   renderer.particles.length = 0;
   renderer.finishLabel = '';
   sound.setTheme(sim.theme);
@@ -391,7 +448,7 @@ function beginPlay() {
 function restart() {
   if (mode === 'endless') startEndless();
   else {
-    startLevel(levelId);
+    startRound(roundId);
     beginPlay();
   }
 }
@@ -473,6 +530,8 @@ function toast(text) {
 
 /* ---------- события симуляции ---------- */
 
+const HIT_SOUND = { bubble: 'pop2', bun: 'crumble', soldier: 'clank', ember: 'fizz', lightning: 'thunder' };
+
 function onEvent(ev) {
   switch (ev.type) {
     case 'start':
@@ -528,7 +587,15 @@ function onEvent(ev) {
       sound.play('gate');
       break;
     case 'warn':
-      sound.play(ev.kind === 'bat' ? 'squeak' : ev.kind === 'lightning' ? 'thunder' : 'warn');
+      // молния сначала потрескивает, гром — когда ударит
+      sound.play(ev.kind === 'bat' ? 'squeak' : ev.kind === 'lightning' ? 'fizz' : 'warn');
+      break;
+    case 'suck':
+      // робот-пылесос включил тягу
+      sound.play('buzz');
+      break;
+    case 'steam':
+      sound.play('whistle');
       break;
     case 'coo':
       sound.play('coo');
@@ -546,12 +613,14 @@ function onEvent(ev) {
       break;
     case 'hit':
       sound.play('hit');
+      // у опасностей второго уровня — свой призвук поверх общего удара
+      if (HIT_SOUND[ev.cause]) sound.play(HIT_SOUND[ev.cause]);
       buzz(ev.lives > 0 ? 60 : [80, 40, 120]);
       hitStop = ev.lives > 0 ? 0.08 : 0.13;
       break;
     case 'theme':
       sound.setTheme(ev.theme);
-      toast(ev.theme === 'love' ? `Дорога к ${CONFIG.her.dative}` : THEMES[ev.theme].name);
+      toast(worldName(ev.theme));
       break;
     case 'win':
       sound.play('win');
@@ -580,14 +649,14 @@ function buzz(pattern) {
 
 function showWin() {
   const stars = sim.stars();
-  const l = LEVELS[levelId - 1];
+  const l = ROUNDS[roundId - 1];
   const bonus = stars * 5;
   const earned = sim.hearts + bonus;
-  save.completeLevel(levelId, stars, sim.pathHearts);
+  save.completeRound(roundId, stars, sim.pathHearts);
   bankHearts();
   save.addHearts(bonus);
 
-  $('#winEyebrow').textContent = `Уровень ${levelId} · ${levelName(l)}`;
+  $('#winEyebrow').textContent = l.finale ? `Уровень ${l.level} пройден · ${roundName(l)}` : `${roundLabel(l)} · ${roundName(l)}`;
   const icons = $$('#winStars .icon');
   icons.forEach((el) => el.classList.remove('on'));
   // порядок появления: левая, правая, центральная
@@ -608,28 +677,26 @@ function showWin() {
   $('#winHearts').textContent = `+${earned}`;
   $('#winStars').setAttribute('aria-label', `Звёзд: ${stars} из 3`);
 
-  // Первое прохождение ведёт к записке. Если она уже прочитана — можно сразу лететь дальше.
-  const letter = letterFor(levelId);
-  const isFinal = !!letter;
-  const isLast = levelId === LEVELS.length;
-  const hasNote = isFinal || CONFIG.notes.some((n) => n.level === levelId);
-  const seen = save.data.seenNotes.includes(levelId);
+  // Первое прохождение ведёт к записке (а после последнего раунда уровня — ещё и к письму).
+  // Если всё уже прочитано — можно сразу лететь дальше.
+  const letter = letterFor(roundId);
+  const hasNote = CONFIG.notes.some((n) => n.round === roundId);
+  const seen = save.data.seenNotes.includes(roundId);
   const btnNote = $('#btnNote');
   const btnNext = $('#btnWinNext');
-  btnNote.hidden = !hasNote;
+  btnNote.hidden = !hasNote && !letter;
   btnNote.className = seen ? 'btn btn--ghost btn--small' : 'btn';
-  $('#btnNoteLabel').textContent = seen ? (isFinal ? 'Перечитать письмо' : 'Перечитать записку') : isFinal ? 'Открыть письмо' : 'Открыть записку';
-  btnNext.hidden = hasNote && !seen;
-  // на промежуточном финале (10-й) игра продолжается, поэтому кнопка ведёт дальше, а не в меню
-  btnNext.textContent = isLast ? 'В меню' : `Дальше · уровень ${levelId + 1}`;
+  $('#btnNoteLabel').textContent = `${seen ? 'Перечитать' : 'Открыть'} ${letter ? 'записку и письмо' : 'записку'}`;
+  btnNext.hidden = (hasNote || !!letter) && !seen;
+  btnNext.textContent = nextLabel(roundId);
   $('#btnWinRetry').hidden = stars >= 3;
   go('win');
 }
 
-/** Тема музыки для открытого письма: у каждого финала своя — по номеру письма. */
+/** Тема музыки для открытого письма: у каждого письма своя. */
 function letterTheme(id) {
-  const i = (CONFIG.letters || []).findIndex((l) => l.level === id);
-  return i > 0 ? 'email' : 'letter'; // имена тем — из audio.js (ROOTS/STYLE), а не выдуманные
+  const r = ROUNDS[id - 1];
+  return r && r.level > 1 ? 'email' : 'letter'; // имена тем — из audio.js (ROOTS/STYLE), а не выдуманные
 }
 
 /** Наполняет листок записки или письма. Строки появляются одна за другой. */
@@ -651,56 +718,31 @@ function fillSheet({ no, title, text, sign, slow, photoId }) {
 }
 
 /**
- * Экран записки. Обычный уровень — одна записка.
- * Финал — две ступени: сначала записка от Мии, потом конверт с письмом создателя.
+ * Экран записки. После каждого раунда — записка от Мии.
+ * После последнего раунда уровня ступеней две: сначала записка, потом запечатанный конверт с письмом.
  * Письмо не открывается само: его нужно распечатать, как настоящий конверт.
  */
 function showNote(stage = 'note') {
-  const letter = letterFor(levelId);
-  const isFinal = !!letter;
+  const letter = letterFor(roundId);
+  const note = CONFIG.notes.find((n) => n.round === roundId);
   const envelope = $('#envelope');
   const sheet = $('#letter');
   const actions = $('#noteActions');
 
-  if (isFinal && stage === 'note') {
-    // Первая ступень: Мия пишет сама.
+  if (stage === 'letter' || !note) {
+    if (!letter) return nextAfterWin();
+    // Конверт: письмо откроется по нажатию.
+    const letters = CONFIG.letters || [];
     fillSheet({
-      no: `Записка № ${levelId} из ${CONFIG.notes.length + (CONFIG.letters || []).length}`,
-      title: letter.note.title,
-      text: letter.note.text,
-      sign: `— ${CONFIG.cat.name}`,
-      slow: false,
-      photoId: levelId,
-    });
-    $('#btnNoteNext').textContent = 'Распечатать письмо';
-    afterNote = () => showNote('letter');
-    envelope.hidden = true;
-    $('#envelopeHint').hidden = true;
-    sheet.hidden = false;
-    actions.hidden = false;
-    renderer.fest = false;
-    save.markNoteSeen(levelId);
-    go('note');
-    sound.play('paper');
-    revealLetter();
-    return;
-  }
-
-  if (isFinal) {
-    // Вторая ступень: запечатанный конверт, письмо откроется по нажатию.
-    const letterNo = (CONFIG.letters || []).indexOf(letter) + 1;
-    const letterTotal = (CONFIG.letters || []).length;
-    fillSheet({
-      no: letterTotal > 1 ? `Письмо № ${letterNo} из ${letterTotal}` : 'Письмо',
+      no: letters.length > 1 ? `Письмо № ${letters.indexOf(letter) + 1} из ${letters.length}` : 'Письмо',
       title: letter.title,
       text: letter.text,
       sign: CONFIG.from,
       slow: true,
-      photoId: levelId,
+      photoId: roundId, // к письму приклеено то же фото, что и к записке этого раунда
     });
-    $('#btnNoteNext').textContent = levelId >= LEVELS.length ? 'В меню' : `Дальше · уровень ${levelId + 1}`;
+    $('#btnNoteNext').textContent = nextLabel(roundId);
     afterNote = nextAfterWin;
-    save.markNoteSeen(levelId);
     go('note');
     envelope.classList.remove('is-open');
     envelope.hidden = false;
@@ -713,22 +755,29 @@ function showNote(stage = 'note') {
     return;
   }
 
-  // Обычная записка уровня.
-  const note = CONFIG.notes.find((n) => n.level === levelId);
-  if (!note) return nextAfterWin();
+  // Записка раунда.
   fillSheet({
-    no: `Записка № ${levelId} из ${CONFIG.notes.length}`,
+    no: `Записка № ${roundId} из ${CONFIG.notes.length}`,
     title: note.title,
     text: note.text,
     sign: `— ${note.from || CONFIG.cat.name}`,
     slow: false,
-    photoId: levelId,
+    photoId: roundId,
   });
-  $('#btnNoteNext').textContent = levelId >= LEVELS.length ? 'В меню' : `Дальше · уровень ${levelId + 1}`;
-  afterNote = nextAfterWin;
   envelope.hidden = true;
   $('#envelopeHint').hidden = true;
-  save.markNoteSeen(levelId);
+  sheet.hidden = false;
+  actions.hidden = false;
+  renderer.fest = false;
+  if (letter) {
+    // последний раунд уровня: записка — только первая ступень, «прочитано» ставится, когда вскрыт конверт
+    $('#btnNoteNext').textContent = 'Распечатать письмо';
+    afterNote = () => showNote('letter');
+  } else {
+    $('#btnNoteNext').textContent = nextLabel(roundId);
+    afterNote = nextAfterWin;
+    save.markNoteSeen(roundId);
+  }
   go('note');
   sound.play('paper');
   revealLetter();
@@ -769,13 +818,14 @@ function openEnvelope() {
   const env = $('#envelope');
   if (env.hidden || env.disabled) return;
   env.disabled = true;
+  save.markNoteSeen(roundId); // конверт вскрыт — записка и письмо этого раунда прочитаны
   $('#envelopeHint').hidden = true;
   sound.unlock();
   sound.play('seal');
   sound.play('envelope');
   buzz([20, 60, 20]);
   // музыка письма — тихая и медленная; играет, пока письмо открыто
-  if (musicStarted) sound.setTheme(letterTheme(levelId));
+  if (musicStarted) sound.setTheme(letterTheme(roundId));
   env.classList.add('is-open');
   clearTimeout(envelopeTimer);
   envelopeTimer = setTimeout(
@@ -790,7 +840,7 @@ function openEnvelope() {
   );
 }
 
-/** Уходим с экрана записки: гасим праздник и возвращаем музыку уровня. */
+/** Уходим с экрана записки: гасим праздник и возвращаем музыку раунда. */
 function closeLetter() {
   clearTimeout(envelopeTimer);
   if (renderer.fest) {
@@ -800,14 +850,14 @@ function closeLetter() {
 }
 
 function nextAfterWin() {
-  if (levelId < LEVELS.length) startLevel(levelId + 1);
+  if (roundId < ROUNDS.length) startRound(roundId + 1);
   else go('menu');
 }
 
 function showLose() {
-  const l = LEVELS[levelId - 1];
+  const l = ROUNDS[roundId - 1];
   bankHearts();
-  $('#loseEyebrow').textContent = `Уровень ${levelId} · ${levelName(l)}`;
+  $('#loseEyebrow').textContent = `${roundLabel(l)} · ${roundName(l)}`;
   $('#loseText').textContent = LOSE_LINES[Math.floor(Math.random() * LOSE_LINES.length)];
   const p = Math.round(sim.progress * 100);
   $('#loseBar').style.width = '0%';
@@ -935,9 +985,9 @@ function bind() {
   $('#btnPlay').addEventListener('click', () => {
     sound.unlock();
     sound.play('click');
-    const allDone = LEVELS.every((l) => save.data.levels[l.id] && save.data.levels[l.id].done);
+    const allDone = ROUNDS.every((l) => save.data.levels[l.id] && save.data.levels[l.id].done);
     if (allDone) go('levels');
-    else startLevel(save.nextLevel(LEVELS.length));
+    else startRound(save.nextRound(ROUNDS.length));
   });
   $('#btnLevels').addEventListener('click', () => { sound.unlock(); sound.play('click'); go('levels'); });
   $('#btnWardrobe').addEventListener('click', () => { sound.unlock(); sound.play('click'); go('wardrobe'); });
@@ -997,7 +1047,7 @@ function resize() {
     sim.miaX = w / 2;
   } else if (sim.status === 'ready') {
     // до старта можно безболезненно пересоздать уровень под новый размер
-    const keep = { mode: sim.mode, levelId: sim.level ? sim.level.id : 1 };
+    const keep = { mode: sim.mode, roundId: sim.round ? sim.round.id : 1 };
     sim = new Sim({ ...keep, viewW: w, seed: Date.now() % 1e9 });
   } else sim.viewW = w;
 }
@@ -1057,7 +1107,7 @@ function frame(now) {
 window.__fk = {
   get sim() { return sim; },
   get screen() { return screen; },
-  go, startLevel, startEndless, beginPlay, showWin, showNote, save, renderer, sound,
+  go, startRound, startEndless, beginPlay, showWin, showNote, save, renderer, sound,
   freeze(v = true) { frozen = v; },
 };
 

@@ -20,7 +20,7 @@ const STYLE = {
   pond: { bpm: 106, arp: [0, 2, 0, 1, 2, 1, 0, 2], len: 0.22, wave: 'triangle' },
   plush: { bpm: 84, high: 12, arp: [0, 1, 2, 1, 2, 1, 0, 1], len: 0.9 },
   gothic: { bpm: 108, minor: true, arp: [0, 1, 2, 0, 2, 1, 2, 1], len: 0.28, wave: 'square' },
-  // ---- вторая глава ----
+  // ---- второй уровень ----
   attic: { bpm: 88, minor: true, arp: [0, 1, 2, 1, 0, 1, 2, 1], len: 0.5, wave: 'triangle' }, // медленно, как пыль в луче света
   vacuum: { bpm: 116, arp: [0, 2, 0, 2, 1, 2, 0, 2], len: 0.24, wave: 'square' }, // ритмично, как моторчик
   yarn: { bpm: 100, high: 12, arp: [0, 2, 1, 2, 0, 2, 1, 2], len: 0.34 }, // игриво
@@ -55,7 +55,7 @@ export class Sound {
     this.timer = null;
     this.combo = 0;
     this.comboT = 0;
-    // «живая» музыка: слои добавляются по ходу уровня (см. setMood)
+    // «живая» музыка: слои добавляются по ходу раунда (см. setMood)
     this.intensity = 0;
     this.danger = false;
     this.boost = false;
@@ -98,7 +98,7 @@ export class Sound {
       this.master.connect(this.limiter).connect(this.ctx.destination);
       this.sfx = this.ctx.createGain();
       this.sfx.connect(this.master);
-      // музыка идёт через фильтр: в начале уровня она «приглушена», к финишу раскрывается
+      // музыка идёт через фильтр: в начале раунда она «приглушена», к финишу раскрывается
       this.mus = this.ctx.createGain();
       this.mus.gain.value = 0.5;
       this.musFilter = this.ctx.createBiquadFilter();
@@ -529,7 +529,7 @@ export class Sound {
       if (pos === 4 && bar % 2 === 1) this.tone(midi(root + 24 + chord[2]), 0.8, { type: 'sine', vol: 0.05, delay, out });
       if (pos === 6 && Math.floor(n / 32) % 2 === 1) this.tone(midi(root + 24 + chord[1]), 0.6, { type: 'sine', vol: 0.045, delay, out });
       if (!this.danger) {
-        // слой 4 — мягкие аккорды на слабую долю: появляются к середине уровня
+        // слой 4 — мягкие аккорды на слабую долю: появляются к середине раунда
         if (lvl > 0.3 && (pos === 2 || pos === 6)) {
           const v = 0.022 + (lvl - 0.3) * 0.03;
           this.tone(midi(root + chord[1]), 0.22, { type: 'triangle', vol: v, delay, out, attack: 0.006 });

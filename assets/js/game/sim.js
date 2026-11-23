@@ -2,7 +2,7 @@
    Чистая логика без DOM и canvas: её можно гонять в Node (см. tools/bot-test.mjs).
    Рендер и звук подписываются на sim.events. */
 
-import { WORLD, LEVELS, endlessParams, POWERUPS } from './levels.js';
+import { WORLD, ROUNDS, ENDLESS_THEMES, endlessParams, POWERUPS } from './levels.js';
 
 const { H, GROUND, GRAVITY, FLAP, MAX_FALL, RADIUS, GATE_W } = WORLD;
 const FIRST_GATE = 560; // расстояние от Мии до первых ворот
@@ -14,15 +14,27 @@ const FROG_Y = GROUND - 14; // на этой высоте лягушонок с�
 const FROG_GRAVITY = 1500;
 const FROG_WARN = 0.6; // столько секунд по воде идут круги, прежде чем лягушонок прыгнет
 const BAT_WAVE = 38; // размах волны, по которой летит летучая мышь
-// Опасности второй главы
-const ROOMBA_Y = GROUND - 12; // робот-пылесос едет по полу
-const BIRD_Y = GROUND - 40; // голуби взлетают с земли
-const BUBBLE_RISE = 46; // мыльный пузырь всплывает снизу вверх
-const BUN_SPEED = 96; // булочка летит навстречу, но небыстро: она должна быть уклоняемой на широком экране
-const SOLDIER_SPEED = 150; // оловянный солдатик шагает навстречу
-const EMBER_RISE = 130; // уголёк поднимается от камина
-const BOLT_PERIOD_MIN = 2.6; // молния бьёт не чаще, чем раз в столько секунд
+// Опасности второго уровня
+const ROOMBA_Y = GROUND - 12; // робот-пылесос ездит по полу
+const ROOMBA_REACH = 120; // на таком расстоянии по горизонтали он начинает тянуть Мию к себе
+const ROOMBA_PULL = 700; // сила тяги прямо над роботом (у ветра — 520)
+const STEAM_REACH = 34; // половина ширины струи пара
+const STEAM_PUSH = 850; // пар подбрасывает вверх
+const BIRD_Y = GROUND - 26; // голубь сидит на земле
+const EMBER_Y = GROUND - 22; // уголёк лежит в огне
+const BUBBLE_DROP = 62; // пузырь висит на столько ниже точки, в которую всплывёт
+// Всё, что взлетает (пузырь, голубь, уголёк), срывается с места ровно за RISE_LEAD секунд до того, как Мия
+// окажется над ним, и за это время долетает до своей высоты aimY. Так опасность ведёт себя одинаково
+// на телефоне и на широком экране, а игрок всегда видит её целую секунду.
+const RISE_LEAD = 1;
+// Всё, что летит навстречу (пыль, булочка, солдатик), встречается с Мией в середине пролёта между воротами.
 const DUST_SPEED = 110;
+const BUN_SPEED = 96;
+const SOLDIER_SPEED = 124;
+// Молния: точка в небе светится BOLT_WARN секунд, потом в неё бьёт разряд — от верха экрана до точки.
+const BOLT_WARN = 0.8;
+const BOLT_LIFE = 0.42;
+const BOLT_HALF = 40; // разряд начинается, когда Мии до него остаётся столько пикселей
 
 function mulberry32(a) {
   return function () {
@@ -39,11 +51,24 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const smooth = (t) => t * t * (3 - 2 * t);
 
 export class Sim {
-  constructor({ mode = 'story', levelId = 1, viewW = 400, seed = Date.now() } = {}) {
+  /** worlds — какие миры встречаются в бесконечном режиме (по умолчанию все); в сюжете не используется. */
+  constructor({ mode = 'story', roundId = 1, viewW = 400, seed = Date.now(), worlds = null } = {}) {
     this.mode = mode;
-    this.level = mode === 'story' ? LEVELS.find((l) => l.id === levelId) || LEVELS[0] : null;
+    this.round = mode === 'story' ? ROUNDS.find((l) => l.id === roundId) || ROUNDS[0] : null;
     this.viewW = viewW;
     this.rand = mulberry32(seed >>> 0);
+    // Бесконечный режим: миры идут в случайном порядке, свой для каждого забега. Первый — всегда первый
+    // из списка (гостиная): в нём разминка. Иначе до миров второго уровня не долетел бы почти никто.
+    this.worlds = null;
+    if (mode !== 'story') {
+      const pool = (worlds && worlds.length ? worlds : ENDLESS_THEMES).filter((t, i, a) => ENDLESS_THEMES.includes(t) && a.indexOf(t) === i);
+      const rest = pool.slice(1);
+      for (let i = rest.length - 1; i > 0; i--) {
+        const j = Math.floor(this.rand() * (i + 1));
+        [rest[i], rest[j]] = [rest[j], rest[i]];
+      }
+      this.worlds = [pool[0] || ENDLESS_THEMES[0], ...rest];
+    }
 
     this.t = 0;
     this.dist = 0; // прокрутка мира (ворота, предметы)
@@ -70,15 +95,14 @@ export class Sim {
     this.wind = { state: 'idle', timer: 4, dir: 1 };
     this.cucumberTimer = 3.5;
     this.batTimer = 3;
-    this.boltTimer = 3;
-    this.clear = 0; // 0…1 — насколько «прояснилось» после дождя (только для уровней с calmFrom)
+    this.clear = 0; // 0…1 — насколько «прояснилось» после дождя (только для раундов с calmFrom)
     this.cleared = false;
 
     this.spawned = 0;
     this.passed = 0;
     this.hearts = 0; // собрано (с бонусами)
     this.pathHearts = 0; // собрано «обычных» сердечек — для звёзд
-    this.heartsTotal = 0; // сколько обычных сердечек было на уровне
+    this.heartsTotal = 0; // сколько обычных сердечек было на раунде
     this.streak = 0; // сердечек подряд без пропуска
     this.bestStreak = 0;
     this.nearMisses = 0; // пролётов впритирку к воротам
@@ -89,8 +113,8 @@ export class Sim {
     this.speed = p.speed;
     this.theme = p.theme;
     this.nextGateX = this.miaX + FIRST_GATE;
-    // Длина сюжетного уровня известна заранее: ворота стоят с постоянным шагом.
-    this.trackLen = mode === 'story' ? FIRST_GATE + (this.level.gates - 1) * this.level.spacing + this.level.spacing * FINISH_GAP : 0;
+    // Длина сюжетного раунда известна заранее: ворота стоят с постоянным шагом.
+    this.trackLen = mode === 'story' ? FIRST_GATE + (this.round.gates - 1) * this.round.spacing + this.round.spacing * FINISH_GAP : 0;
     this.prevAnchor = { x: this.miaX + 200, y: 330 };
 
     this.events = [];
@@ -98,20 +122,20 @@ export class Sim {
   }
 
   params(n = this.spawned) {
-    return this.mode === 'story' ? this.level : endlessParams(n);
+    return this.mode === 'story' ? this.round : endlessParams(n, this.worlds);
   }
 
   get totalGates() {
-    return this.mode === 'story' ? this.level.gates : Infinity;
+    return this.mode === 'story' ? this.round.gates : Infinity;
   }
 
-  /** Номер ворот, с которых уровень становится спокойным (дождь кончился). Infinity — такого места нет. */
+  /** Номер ворот, с которых раунд становится спокойным (дождь кончился). Infinity — такого места нет. */
   get calmGate() {
-    const l = this.level;
+    const l = this.round;
     return l && l.calmFrom != null ? Math.round(l.gates * l.calmFrom) : Infinity;
   }
 
-  /** Насколько пройден сюжетный уровень, 0..1. В бесконечном режиме всегда 0. */
+  /** Насколько пройден сюжетный раунд, 0..1. В бесконечном режиме всегда 0. */
   get progress() {
     return this.trackLen ? clamp(this.dist / this.trackLen, 0, 1) : 0;
   }
@@ -136,7 +160,7 @@ export class Sim {
     while (this.spawned < this.totalGates && this.nextGateX - this.dist < this.viewW + 260) this.spawnGate();
     if (this.mode === 'story' && this.spawned >= this.totalGates && this.finishX == null) {
       const last = this.gates[this.gates.length - 1];
-      this.finishX = last.x + this.level.spacing * FINISH_GAP;
+      this.finishX = last.x + this.round.spacing * FINISH_GAP;
       // дорожка сердечек к финишу
       for (let i = 1; i <= 3; i++) {
         this.addItem('heart', lerp(last.x + GATE_W, this.finishX, i / 4), lerp(last.baseY, 330, smooth(i / 4)));
@@ -184,7 +208,7 @@ export class Sim {
     // сердечко в просвете (едет вместе с воротами)
     this.addItem('heart', x + GATE_W / 2, baseY, { gate });
 
-    // дорожка между воротами; в спокойной части уровня (после дождя) сердечек на ней вдвое больше
+    // дорожка между воротами; в спокойной части раунда (после дождя) сердечек на ней вдвое больше
     const ax = this.prevAnchor.x;
     const span = x - ax;
     const pathY = (f) => lerp(prevY, baseY, smooth(f));
@@ -231,51 +255,56 @@ export class Sim {
       this.hazards.push({ type: 'frog', x: midX, y: FROG_Y, r: 15, vx: 0, vy: 0, state: 'sit', timer: 0, jump: 735 + r() * 150, at: 0.2 + r() * 0.55 });
       midBusy = true;
     }
-    // ---- вторая глава: у каждой опасности своя манера ----
+    // ---- второй уровень: у каждой опасности своя манера ----
+    const beside = (lo, hi) => clamp(pathY(0.5) + (r() < 0.5 ? -1 : 1) * (lo + r() * (hi - lo)), 70, GROUND - 70);
+    // встречные: mx — где встретятся с Мией, k — во сколько раз они медленнее её
+    const oncoming = (type, y, rad, v) => ({ type, x: midX, mx: midX, k: v / p.speed, y, y0: y, r: rad, phase: r() * 6.28 });
 
-    // пыль на чердаке: медленно летит навстречу, легко объехать
+    // пыль на чердаке: медленно плывёт навстречу сбоку от пути
     if (hz.includes('dust') && !midBusy && r() < 0.38) {
-      const side = r() < 0.5 ? -1 : 1;
-      const dy = clamp(pathY(0.5) + side * (70 + r() * 40), 70, GROUND - 70);
-      this.hazards.push({ type: 'dust', x: midX, y: dy, y0: dy, r: 17, vx: -DUST_SPEED, phase: r() * 6.28 });
+      this.hazards.push(oncoming('dust', beside(70, 110), 17, DUST_SPEED));
       midBusy = true;
     }
-    // робот-пылесос: едет по полу и не меняет высоту — спасает то, что Мия летит выше
-    if (hz.includes('roomba') && !midBusy && r() < 0.40) {
-      this.hazards.push({ type: 'roomba', x: midX, y: ROOMBA_Y, y0: ROOMBA_Y, r: 26, vx: -60, phase: r() * 6.28 });
+    // робот-пылесос: ездит по полу и тянет Мию вниз, пока она над ним
+    if (hz.includes('roomba') && !midBusy && r() < 0.46) {
+      this.hazards.push({ type: 'roomba', x: midX, mx: midX, y: ROOMBA_Y, r: 24, phase: r() * 6.28, pull: 0 });
       midBusy = true;
     }
-    // мыльные пузыри: всплывают снизу, пересекая путь
+    // мыльный пузырь: висит чуть ниже пути и всплывает, когда Мия подлетает
     if (hz.includes('bubble') && !midBusy && r() < 0.38) {
-      const startY = GROUND - 40 - r() * 60;
-      this.hazards.push({ type: 'bubble', x: midX, y: startY, y0: startY, r: 16, vx: 0, vy: -BUBBLE_RISE, phase: r() * 6.28 });
+      const aimY = beside(60, 104);
+      this.hazards.push({ type: 'bubble', x: midX, y: aimY + BUBBLE_DROP, y0: aimY + BUBBLE_DROP, aimY, r: 16, vy: 0, state: 'idle', phase: r() * 6.28 });
       midBusy = true;
     }
-    // голубь: сидит низко и взлетает, когда Мия уже близко
-    if (hz.includes('bird') && !midBusy && r() < 0.38) {
-      this.hazards.push({ type: 'bird', x: midX, y: BIRD_Y, y0: BIRD_Y, r: 13, vx: 0, vy: 0, phase: r() * 6.28, up: false });
+    // голубь: сидит на земле и взлетает, когда Мия уже близко
+    if (hz.includes('bird') && !midBusy && r() < 0.28) {
+      this.hazards.push({ type: 'bird', x: midX, y: BIRD_Y, y0: BIRD_Y, aimY: beside(66, 112), r: 13, vy: 0, state: 'idle', phase: r() * 6.28 });
       midBusy = true;
     }
-    // булочка: летит навстречу по прямой
-    if (hz.includes('bun') && !midBusy && r() < 0.30) {
-      const by = clamp(pathY(0.5) + (r() * 2 - 1) * 60, 70, GROUND - 70);
-      this.hazards.push({ type: 'bun', x: midX, y: by, y0: by, r: 15, vx: -BUN_SPEED, phase: r() * 6.28 });
+    // булочка: летит навстречу рядом с путём и кувыркается
+    if (hz.includes('bun') && !midBusy && r() < 0.32) {
+      this.hazards.push(oncoming('bun', beside(34, 88), 15, BUN_SPEED));
       midBusy = true;
     }
-    // солдатик: шагает навстречу, но чуть медленнее булочки
+    // оловянный солдатик: летит навстречу рядом с путём, строго по прямой и быстрее булочки
     if (hz.includes('soldier') && !midBusy && r() < 0.36) {
-      const sy = clamp(pathY(0.5) + (r() * 2 - 1) * 55, 70, GROUND - 70);
-      this.hazards.push({ type: 'soldier', x: midX, y: sy, y0: sy, r: 15, vx: -SOLDIER_SPEED, phase: r() * 6.28 });
+      this.hazards.push(oncoming('soldier', beside(34, 86), 15, SOLDIER_SPEED));
       midBusy = true;
     }
-    // уголёк: поднимается от камина вверх
-    if (hz.includes('ember') && !midBusy && r() < 0.38) {
-      this.hazards.push({ type: 'ember', x: midX, y: GROUND - 30, y0: GROUND - 30, r: 12, vx: 0, vy: -EMBER_RISE, phase: r() * 6.28 });
+    // уголёк: вылетает из огня, когда Мия подлетает
+    if (hz.includes('ember') && !midBusy && r() < 0.4) {
+      this.hazards.push({ type: 'ember', x: midX, y: EMBER_Y, y0: EMBER_Y, aimY: beside(64, 112), r: 13, vy: 0, state: 'idle', phase: r() * 6.28 });
       midBusy = true;
     }
-    // пар из пекарни: медленно поднимается, широкий и мягкий
-    if (hz.includes('steam') && !midBusy && r() < 0.28) {
-      this.hazards.push({ type: 'steam', x: midX, y: GROUND - 20, y0: GROUND - 20, r: 22, vx: 0, vy: -60, phase: r() * 6.28 });
+    // пар из кастрюли: не ранит, а подбрасывает вверх (в списке опасностей — потому что сбивает с пути)
+    if (hz.includes('steam') && !midBusy && r() < 0.3) {
+      this.hazards.push({ type: 'steam', x: midX, y: GROUND, r: STEAM_REACH, phase: r() * 6.28, on: false });
+      midBusy = true;
+    }
+    // молния: точка над путём; разряд идёт от верха экрана до неё — пролететь нужно ниже
+    if (hz.includes('lightning') && !midBusy && r() < 0.42) {
+      const tip = clamp(pathY(0.5) - (76 + r() * 30), 70, GROUND - 200);
+      this.hazards.push({ type: 'lightning', x: midX, y: tip, r: 15, state: 'idle', timer: 0, phase: r() * 6.28 });
       midBusy = true;
     }
 
@@ -376,8 +405,32 @@ export class Sim {
       this.wind.state = 'idle';
     }
 
+    // робот-пылесос тянет вниз, пар подбрасывает вверх — пока Мия над ними
+    let zoneA = 0;
+    {
+      const mx = this.dist + this.miaX;
+      for (const h of this.hazards) {
+        if (h.type === 'roomba') {
+          const k = 1 - Math.abs(h.x - mx) / ROOMBA_REACH;
+          h.pull = k > 0 ? k : 0;
+          if (k > 0) {
+            zoneA += ROOMBA_PULL * k;
+            if (!h.on) this.emit('suck', { x: h.x, y: h.y });
+          }
+          h.on = k > 0;
+        } else if (h.type === 'steam') {
+          const inside = Math.abs(h.x - mx) < STEAM_REACH;
+          if (inside) {
+            zoneA -= STEAM_PUSH;
+            if (!h.on) this.emit('steam', { x: h.x, y: m.y });
+          }
+          h.on = inside;
+        }
+      }
+    }
+
     // полёт
-    m.vy = clamp(m.vy + (GRAVITY + windA) * dt, -700, MAX_FALL);
+    m.vy = clamp(m.vy + (GRAVITY + windA + zoneA) * dt, -700, MAX_FALL);
     m.y += m.vy * dt;
     const targetRot = clamp((m.vy / MAX_FALL) * 1.05, -0.42, 1.05);
     m.rot = lerp(m.rot, targetRot, 1 - Math.pow(0.0005, dt));
@@ -476,27 +529,12 @@ export class Sim {
         this.emit('warn', { y, kind: 'bat' });
       }
     }
-    // молнии: бьют сверху вниз по отмеченной высоте, предупреждение — короткое
-    if (hazardsOn.includes('lightning')) {
-      this.boltTimer -= dt;
-      if (this.boltTimer <= 0) {
-        this.boltTimer = BOLT_PERIOD_MIN + this.rand() * 2.2;
-        const y = clamp(m.y + (this.rand() * 2 - 1) * 55, 90, GROUND - 90);
-        this.warnings.push({ y, timer: 0.85, kind: 'lightning' });
-        this.emit('warn', { y, kind: 'lightning' });
-      }
-    }
     for (const w of this.warnings) {
       w.timer -= dt;
       if (w.timer <= 0) {
         const x = this.dist + this.viewW + 40;
         if (w.kind === 'bat') this.hazards.push({ type: 'bat', x, y: w.y, y0: w.y, vx: -100, r: 14, amp: BAT_WAVE, phase: this.rand() * 6.28 });
-        else if (w.kind === 'lightning') {
-          // Молния бьёт в отмеченную высоту на своём участке пути: уклоняться надо по высоте,
-          // а не по времени. Ставим её впереди Мии, чтобы вспышку было видно заранее.
-          this.hazards.push({ type: 'lightning', x, y: w.y, y0: w.y, r: 15, vx: 0, life: 0.6, phase: this.rand() * 6.28 });
-          this.emit('lightning', { x, y: w.y });
-        } else this.hazards.push({ type: 'cucumber', x, y: w.y, y0: w.y, vx: -115, r: 15, phase: this.rand() * 6.28 });
+        else this.hazards.push({ type: 'cucumber', x, y: w.y, y0: w.y, vx: -115, r: 15, phase: this.rand() * 6.28 });
         w.done = true;
       }
     }
@@ -519,34 +557,42 @@ export class Sim {
       } else if (h.type === 'bat') {
         h.x += h.vx * dt;
         h.y = h.y0 + Math.sin(h.phase + this.t * 3.2) * h.amp;
-      } else if (h.type === 'dust') {
-        h.x += h.vx * dt;
-        h.y = h.y0 + Math.sin(h.phase + this.t * 2.1) * 14;
+      } else if (h.type === 'dust' || h.type === 'bun' || h.type === 'soldier') {
+        // положение зависит только от того, сколько Мии осталось до места встречи — ширина экрана ни при чём
+        h.x = h.mx + h.k * (h.mx - wx);
+        if (h.type === 'dust') h.y = h.y0 + Math.sin(h.phase + this.t * 2.1) * 14;
+        else if (h.type === 'bun') h.y = h.y0 + Math.sin(h.phase + this.t * 4.2) * 12;
       } else if (h.type === 'roomba') {
-        h.x += h.vx * dt;
-        h.y = ROOMBA_Y - Math.abs(Math.sin(h.phase + this.t * 2.4)) * 5;
-      } else if (h.type === 'lightning') {
-        // стоит на месте и быстро гаснет: это вспышка, а не летящий предмет
-        h.life -= dt;
-        if (h.life <= 0) h.dead = true;
-      } else if (h.type === 'bubble' || h.type === 'ember' || h.type === 'steam') {
-        h.y += h.vy * dt;
-        h.x += Math.sin(h.phase + this.t * 2.6) * 26 * dt;
-        if (h.y < -40) h.dead = true;
-      } else if (h.type === 'bun' || h.type === 'soldier') {
-        h.x += h.vx * dt;
-        h.y = h.y0 + Math.sin(h.phase + this.t * 4.2) * 10;
-      } else if (h.type === 'bird') {
-        // голубь срывается, когда Мия подлетает близко
-        if (!h.up && h.x - this.dist - this.miaX < 260 && h.x > this.dist + this.miaX) {
-          h.up = true;
-          this.emit('coo', { x: h.x, y: h.y });
-        }
-        if (h.up) {
-          h.vy = Math.max(h.vy - 420 * dt, -190);
+        h.x = h.mx + Math.sin(h.phase + this.t * 0.9) * 36;
+      } else if (h.type === 'bubble' || h.type === 'ember' || h.type === 'bird') {
+        if (h.state === 'idle') {
+          if (h.type === 'bubble') h.y = h.y0 + Math.sin(h.phase + this.t * 2.2) * 4;
+          if (h.x > wx && h.x - wx <= this.speed * RISE_LEAD) {
+            h.state = 'rise';
+            h.vy = -(h.y - h.aimY) / RISE_LEAD;
+            if (h.type === 'bird') this.emit('coo', { x: h.x, y: h.y });
+          }
+        } else {
           h.y += h.vy * dt;
-          h.x += 40 * dt;
-          if (h.y < 60) h.dead = true;
+          if (h.y < -40) h.dead = true;
+        }
+      } else if (h.type === 'lightning') {
+        if (h.state === 'idle') {
+          if (h.x > wx && h.x - wx <= this.speed * BOLT_WARN + BOLT_HALF) {
+            h.state = 'warn';
+            h.timer = BOLT_WARN;
+            this.emit('warn', { x: h.x, y: h.y, kind: 'lightning' });
+          }
+        } else if (h.state === 'warn') {
+          h.timer -= dt;
+          if (h.timer <= 0) {
+            h.state = 'strike';
+            h.timer = BOLT_LIFE;
+            this.emit('lightning', { x: h.x, y: h.y });
+          }
+        } else {
+          h.timer -= dt;
+          if (h.timer <= 0) h.dead = true;
         }
       } else if (h.type === 'frog') {
         const sx = h.x - this.dist;
@@ -579,6 +625,12 @@ export class Sim {
         }
       }
       if (h.dead || this.status !== 'playing') continue;
+      if (h.type === 'steam') continue; // пар не ранит
+      if (h.type === 'lightning') {
+        // разряд — отрезок от верха экрана до точки: задевает всё, что выше неё
+        if (h.state === 'strike' && !ghost && Math.abs(h.x - wx) < h.r + RADIUS - 3 && m.y - RADIUS + 6 < h.y) this.hit('lightning');
+        continue;
+      }
       const dx = h.x - wx;
       const dy = h.y - m.y;
       const rr = h.r + RADIUS - 3;
@@ -702,7 +754,7 @@ export class Sim {
     }
   }
 
-  /** Звёзды за уровень — по одной за каждую цель: долетела, собрала 70% сердечек, не потеряла ни одной жизни.
+  /** Звёзды за раунд — по одной за каждую цель: долетела, собрала 70% сердечек, не потеряла ни одной жизни.
       Сколько галочек на экране победы, столько и звёзд. */
   stars() {
     if (this.status !== 'won') return 0;

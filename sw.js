@@ -8,7 +8,7 @@
    сайт работает и в подпапке GitHub Pages, и в корне домена.
    ⚠ Поменял список CORE — увеличь номер в VERSION. */
 
-const VERSION = 'fk-5'; // вторая глава: двадцать уровней, десять новых миров, два письма
+const VERSION = 'fk-6'; // два уровня по десять раундов: 20 записок, 2 письма, кадры второго уровня
 const CACHE = `flappykitty-${VERSION}`;
 
 // Всё, без чего игра не запустится, и страницы сайта, на которые из неё ведут ссылки.
@@ -59,7 +59,7 @@ const CORE = [
   'assets/img/gallery/council-thumb.webp',
   'assets/img/gallery/art-kiss-or-bite-thumb.webp',
   'assets/img/gallery/roses-thumb.webp',
-  // фото к запискам второй главы
+  // фото к запискам второго уровня
   'assets/img/gallery/window-thumb.webp',
   'assets/img/gallery/floor-thumb.webp',
   'assets/img/gallery/funko-thumb.webp',
