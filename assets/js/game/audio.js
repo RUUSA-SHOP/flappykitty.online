@@ -40,6 +40,9 @@ const PROG = {
 };
 const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
 
+// Имена тем, которых нет в ROOTS: сюда попадает опечатка вроде 'letter2', и её видно в проверках.
+export const unknownThemes = new Set();
+
 export class Sound {
   constructor() {
     this.ctx = null;
@@ -359,6 +362,11 @@ export class Sound {
         this.tone(980, 0.09, { type: 'square', vol: 0.06 });
         this.tone(980, 0.09, { type: 'square', vol: 0.06, delay: 0.16 });
         break;
+      case 'windwarn':
+        // ветер только собирается: короткий свист, чтобы успеть понять, откуда дунуть
+        this.noise(0.45, { vol: 0.12, freq: 900, q: 1.2, to: 1700 });
+        this.tone(1240, 0.16, { type: 'sine', vol: 0.05, to: 880 });
+        break;
       case 'wind':
         this.noise(1.3, { vol: 0.16, freq: 700, q: 0.4 });
         break;
@@ -417,6 +425,9 @@ export class Sound {
   }
 
   setTheme(theme) {
+    // Незнакомая тема раньше молча играла «по умолчанию»: письмо № 2 так и осталось
+    // без своей музыки. Запоминаем такие имена — их ловит проверка в unit-test.mjs.
+    if (!(theme in ROOTS)) unknownThemes.add(theme);
     this.theme = theme;
   }
 

@@ -537,6 +537,10 @@ function onEvent(ev) {
       sound.play('thunder');
       buzz(40);
       break;
+    case 'windWarn':
+      // ветер предупреждает заранее: короткий свист, пока игра ещё управляема
+      sound.play('windwarn');
+      break;
     case 'wind':
       sound.play('wind');
       break;
@@ -620,6 +624,12 @@ function showWin() {
   btnNext.textContent = isLast ? 'В меню' : `Дальше · уровень ${levelId + 1}`;
   $('#btnWinRetry').hidden = stars >= 3;
   go('win');
+}
+
+/** Тема музыки для открытого письма: у каждого финала своя — по номеру письма. */
+function letterTheme(id) {
+  const i = (CONFIG.letters || []).findIndex((l) => l.level === id);
+  return i > 0 ? 'email' : 'letter'; // имена тем — из audio.js (ROOTS/STYLE), а не выдуманные
 }
 
 /** Наполняет листок записки или письма. Строки появляются одна за другой. */
@@ -765,7 +775,7 @@ function openEnvelope() {
   sound.play('envelope');
   buzz([20, 60, 20]);
   // музыка письма — тихая и медленная; играет, пока письмо открыто
-  if (musicStarted) sound.setTheme(levelId >= LEVELS.length ? 'letter' : 'letter2');
+  if (musicStarted) sound.setTheme(letterTheme(levelId));
   env.classList.add('is-open');
   clearTimeout(envelopeTimer);
   envelopeTimer = setTimeout(

@@ -516,6 +516,85 @@ const freshSave = async () => (await import(`../assets/js/storage.js?copy=${++co
   globalThis.localStorage = real;
 }
 
+/* ---------- звук и музыка ---------- */
+
+{
+  // Ошибки, которые видно только в браузере: тема музыки, названная не так, как в audio.js,
+  // молча играла «по умолчанию» — второе письмо из-за этого осталось без своей мелодии.
+  const { Sound, unknownThemes } = await import('../assets/js/game/audio.js');
+  test('каждая тема игры есть в таблице музыки', () => {
+    const s = new Sound();
+    for (const k of Object.keys(THEMES)) s.setTheme(k);
+    s.setTheme('letter');
+    s.setTheme('email'); // музыка второго письма
+    assert.deepEqual([...unknownThemes], [], `незнакомые темы музыки: ${[...unknownThemes].join(', ')}`);
+  });
+  test('все звуки, которые зовёт игра, есть в audio.js', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'assets/js/game/audio.js'), 'utf8');
+    const defined = new Set([...src.matchAll(/case '([a-z0-9]+)':/g)].map((m) => m[1]));
+    const called = new Set();
+    for (const f of ['assets/js/game/main.js', 'assets/js/love.js', 'assets/js/site.js']) {
+      for (const m of fs.readFileSync(path.join(ROOT, f), 'utf8').matchAll(/\.play\('([a-z0-9]+)'/g)) called.add(m[1]);
+    }
+    const missing = [...called].filter((c) => !defined.has(c));
+    assert.deepEqual(missing, [], `звуки без ветки в audio.js: ${missing.join(', ')}`);
+  });
+}
+
+/* ---------- события симуляции ---------- */
+
+{
+  const { Sim } = await import('../assets/js/game/sim.js');
+  test('каждое событие симуляции кто-то обрабатывает', () => {
+    const simSrc = fs.readFileSync(path.join(ROOT, 'assets/js/game/sim.js'), 'utf8');
+    const mainSrc = fs.readFileSync(path.join(ROOT, 'assets/js/game/main.js'), 'utf8');
+    const emitted = new Set([...simSrc.matchAll(/this\.emit\('([A-Za-z0-9]+)'/g)].map((m) => m[1]));
+    const handled = new Set([...mainSrc.matchAll(/case '([A-Za-z0-9]+)':/g)].map((m) => m[1]));
+    // 'dying' — сигнал для отрисовки (пауза кадра), а не для экранов
+    const missing = [...emitted].filter((e) => !handled.has(e) && e !== 'dying');
+    assert.deepEqual(missing, [], `события без обработки в main.js: ${missing.join(', ')}`);
+  });
+  test('у каждого письма своя тема музыки, и она существует', () => {
+    const mainSrc = fs.readFileSync(path.join(ROOT, 'assets/js/game/main.js'), 'utf8');
+    const audioSrc = fs.readFileSync(path.join(ROOT, 'assets/js/game/game/audio.js'.replace('/game/game/', '/game/')), 'utf8');
+    const roots = audioSrc.slice(audioSrc.indexOf('const ROOTS'), audioSrc.indexOf('};', audioSrc.indexOf('const ROOTS')));
+    const known = new Set([...roots.matchAll(/([a-z]+):\s*-?\d/g)].map((m) => m[1]));
+    // Проверяем не только объявление letterTheme, но и место вызова: сломать можно и там.
+    // следующий function после openEnvelope — чтобы нарезка не зависела от порядка функций в файле
+    const start = mainSrc.indexOf('function openEnvelope');
+    assert.ok(start > 0, 'нет функции openEnvelope');
+    const after = mainSrc.slice(start + 10);
+    const next = after.search(/\n\s*(async )?function /);
+    const openEnv = next > 0 ? after.slice(0, next) : after;
+    const call = openEnv.match(/sound\.setTheme\(([^;]+)\)/);
+    assert.ok(call, 'конверт должен задавать тему музыки письма');
+    assert.match(call[1], /letterTheme\(/, 'тему письма выбирает letterTheme(), а не строка на месте');
+    const fn = mainSrc.slice(mainSrc.indexOf('function letterTheme'), mainSrc.indexOf('/** Наполняет листок'));
+    const names = [...fn.matchAll(/'([a-z0-9]+)'/g)].map((m) => m[1]);
+    assert.ok(names.length >= 2, 'в letterTheme должно быть по теме на каждое письмо');
+    for (const n of names) assert.ok(known.has(n), `тема письма «${n}» не описана в audio.js`);
+    // и у каждого письма тема своя, иначе у второго письма музыки не будет вовсе
+    assert.equal(new Set(names).size, names.length, 'у писем должны быть разные темы музыки');
+    assert.equal((CONFIG.letters || []).length, 2, 'писем должно быть два');
+  });
+  test('уровень с ветром предупреждает о нём до порыва', () => {
+    const windy = LEVELS.find((l) => (l.hazards || []).includes('wind'));
+    assert.ok(windy, 'нет уровня с ветром');
+    const sim = new Sim({ mode: 'story', levelId: windy.id, seed: 3 });
+    sim.status = 'playing';
+    const seen = new Set();
+    for (let i = 0; i < 120 * 40; i++) {
+      sim.flap();
+      sim.step(1 / 120);
+      for (const e of sim.events.splice(0)) {
+        seen.add(e.type);
+        if (e.type === 'wind') assert.ok(seen.has('windWarn'), 'порыв случился без предупреждения');
+      }
+    }
+    assert.ok(seen.has('windWarn'), 'ветер ни разу не предупредил о себе');
+  });
+}
+
 if (failures.length) {
   console.error(failures.join('\n'));
   console.error(`\n✗ Проверки логики: ${failures.length} не прошло, ${passed} прошло.`);

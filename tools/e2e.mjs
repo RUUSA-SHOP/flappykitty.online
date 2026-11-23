@@ -503,7 +503,8 @@ await test('финал: после последнего уровня откры�
   await page.click('#envelope');
   await page.waitForFunction(() => !document.getElementById('letter').hidden, { timeout: 15000 });
   assert(!(await visible(page, '#envelope')), 'после вскрытия конверт убирается');
-  equal(await page.evaluate(() => window.__fk.sound.theme), 'letter', 'у письма своя музыка');
+  // у каждого письма своя тема: первое — 'letter', второе — 'email' (см. letterTheme в main.js)
+  equal(await page.evaluate(() => window.__fk.sound.theme), 'email', 'у второго письма своя музыка');
   equal(await text(page, '#noteNo'), `Письмо № ${(CONFIG.letters || []).length} из ${(CONFIG.letters || []).length}`, 'подпись над письмом');
   assert((await text(page, '#noteText')).length > 100, 'текст письма пустой');
   const top = await page.evaluate(() => {
@@ -537,7 +538,7 @@ await test('финал: после последнего уровня откры�
   equal(await text(page, '#btnPlayLabel'), 'Играть снова', 'главная кнопка после финала');
   equal((await stored(page)).notes, upTo(TOTAL), 'все записки открыты');
   equal(await page.evaluate(() => window.__fk.renderer.fest), false, 'в меню праздник заканчивается');
-  assert((await page.evaluate(() => window.__fk.sound.theme)) !== 'letter', 'в меню возвращается обычная музыка');
+  assert(!['letter', 'email'].includes(await page.evaluate(() => window.__fk.sound.theme)), 'в меню возвращается обычная музыка');
 });
 
 await test('старое сохранение (шесть уровней): финал и письмо переезжают на последний номер, новые раунды открываются по очереди', async (track) => {
