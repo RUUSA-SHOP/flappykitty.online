@@ -551,22 +551,35 @@ await test('старое сохранение (шесть уровней): фи�
   await page.click('#btnLevels');
   await waitScreen(page, 'levels');
   const cards = await page.evaluate(() => [...document.querySelectorAll('#levelList .level')].map((c) => `${c.disabled ? 'закрыт' : 'открыт'}:${c.querySelectorAll('.level__stars .on').length}`));
-  equal(cards, ['открыт:3', 'открыт:3', 'открыт:3', 'открыт:3', 'открыт:3', 'открыт:0', 'закрыт:0', 'закрыт:0', 'закрыт:0', 'открыт:2'], 'карточки уровней');
+  // Ожидание строится из LEVELS: после переноса финала на 10-й открыты 1–5, затем 6-й (ждёт прохождения),
+  // 7–9 закрыты, 10-й открыт (его уже проходили). Так проверка не разъедется при добавлении уровней.
+  const want = Array.from({ length: TOTAL }, (_, i) => {
+    const id = i + 1;
+    if (id <= 5) return 'открыт:3';
+    if (id === 6) return 'открыт:0';
+    if (id === TOTAL) return 'открыт:2';
+    return 'закрыт:0';
+  });
+  equal(cards, want, 'карточки уровней');
   equal(await text(page, '#starTotal'), `17/${TOTAL * 3}`, 'звёзды не потерялись');
   equal(await text(page, '.screen[data-name="menu"] [data-wallet]'), '300', 'сердечки не потерялись');
   await page.close();
 
   const love = track(await open('love.html', { save: saved }));
-  equal(await text(love, '#noteCount'), `Открыто 6 из ${CARDS}`, 'счётчик записок');
+  // Открыто: записки пройденных раундов + обе карточки финала, который уже проходили.
+  const oldDone = new Set([1, 2, 3, 4, 5, TOTAL]);
+  const openNotes = CONFIG.notes.filter((n) => oldDone.has(n.level)).length;
+  equal(await text(love, '#noteCount'), `Открыто ${openNotes + 2} из ${CARDS}`, 'счётчик записок');
   assert(!(await love.evaluate(() => document.querySelector('#final .note').classList.contains('note--locked'))), 'письмо, которое уже открывали, остаётся открытым');
-  equal(await love.evaluate(() => document.querySelectorAll('#notes .note--locked').length), 4, 'записки новых раундов ещё заперты');
+  equal(await love.evaluate(() => document.querySelectorAll('#notes .note--locked').length), CONFIG.notes.length - openNotes, 'записки новых раундов ещё заперты');
   equal(await love.evaluate(() => [...document.querySelectorAll('.note--locked a')].map((a) => a.getAttribute('href'))), ['play.html?level=6'], 'кнопка «Пройти уровень» — у первого нового раунда');
 });
 
 await test('новые раунды: вступление с подсказкой, своя записка и фото из альбома', async (track) => {
-  const { CONFIG } = await import('../assets/js/config.js');
   const page = track(await game({}, '?dev=1'));
-  for (const id of [6, 7, 8, 9]) {
+  // все обычные раунды второй главы: финалы 10 и 20 проверяются отдельно, в тестах писем
+  const newIds = LEVELS.filter((l) => l.id > 5 && !CONFIG.letters.some((x) => x.level === l.id)).map((l) => l.id);
+  for (const id of newIds) {
     const l = LEVELS[id - 1];
     await page.evaluate((n) => window.__fk.startLevel(n), id);
     await waitScreen(page, 'intro');
@@ -591,7 +604,7 @@ await test('новые раунды: вступление с подсказко�
     equal(await text(page, '#notePhoto figcaption'), CONFIG.photos[id].caption, `подпись под фото ${id}`);
     equal(await text(page, '#btnNoteNext'), `Дальше · уровень ${id + 1}`, `кнопка под запиской ${id}`);
   }
-  equal((await stored(page)).notes, [6, 7, 8, 9], 'записки новых раундов открыты');
+  equal((await stored(page)).notes, newIds, 'записки новых раундов открыты');
 });
 
 await test('уровни и гардероб: шапка и кнопка «назад» видны на любом телефоне, до последней карточки можно долистать', async (track) => {
