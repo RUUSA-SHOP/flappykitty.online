@@ -211,6 +211,31 @@ if (exists('sw.js')) {
   }
 }
 
+/* ---------- инструменты проверок: файл должен хотя бы запускаться ---------- */
+
+{
+  // e2e.mjs не входит в `npm test` (он идёт отдельной задачей CI) и грузится только в браузере.
+  // Однажды из-за этого целый файл падал сразу на первой строке: обращение к CONFIG без импорта.
+  // `node --check` такое не видит — он проверяет только синтаксис, а не имена.
+  for (const file of ['tools/e2e.mjs', 'tools/bot-test.mjs']) {
+    if (!exists(file)) continue;
+    const src = read(file);
+    // каждое имя, которое файл берёт из модулей, должно быть импортировано
+    const imported = new Set();
+    for (const m of src.matchAll(/import\s*\{([^}]+)\}\s*from/g)) {
+      m[1].split(',').forEach((x) => imported.add(x.trim().split(/\s+as\s+/).pop()));
+    }
+    for (const m of src.matchAll(/import\s+([A-Za-z_$][\w$]*)\s+from/g)) imported.add(m[1]);
+    // Имена, которые приходят из config.js и levels.js. Внутри page.evaluate() код исполняется
+    // в браузере и может импортировать что угодно сам — такие куски из проверки выкидываем.
+    const top = src.replace(/page\.evaluate\(([\s\S]*?)\n\s*\}\);|page\.evaluate\(\(\) =>[^;]*\)/g, '');
+    for (const name of ['CONFIG', 'LEVELS', 'SKINS', 'POWERUPS', 'WORLD']) {
+      const used = new RegExp(`(?<![.\\w$])${name}\\b`).test(top);
+      if (used && !imported.has(name)) err(file, `${name} используется, но не импортирован — файл упадёт при запуске`);
+    }
+  }
+}
+
 /* ---------- число уровней: тексты страниц сверяются с игрой ---------- */
 
 {

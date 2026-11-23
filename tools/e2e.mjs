@@ -13,6 +13,7 @@
 
 import { createServer } from './serve.mjs';
 import { LEVELS } from '../assets/js/game/levels.js';
+import { CONFIG } from '../assets/js/config.js';
 
 const TOTAL = LEVELS.length; // уровней в сюжете
 // На странице записок карточек больше: у каждого финала записка Мии и письмо создателя.
