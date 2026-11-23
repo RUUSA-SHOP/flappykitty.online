@@ -761,23 +761,48 @@ export class Renderer {
   /* ---------- опасности второго уровня ---------- */
 
   dustBall(x, y, t) {
-    // клубок пыли: мягкий серый шар с крупинками
+    // Комок пыли: лохматый серо-сиреневый шар с тёмным контуром и глазками.
+    // Контур и холодный цвет нужны, чтобы он читался на тёплом коричневом фоне чердака.
     const ctx = this.ctx;
     ctx.save();
     ctx.translate(x, y);
-    ctx.fillStyle = 'rgba(150,128,104,.85)';
+    ctx.rotate(Math.sin(t * 1.4) * 0.18);
+    // лохматый край — из маленьких кругов по окружности, одним контуром
     ctx.beginPath();
-    ctx.arc(0, 0, 16, 0, TAU);
+    for (let k = 0; k < 9; k++) {
+      const a = (k / 9) * TAU;
+      const px = Math.cos(a) * 12;
+      const py = Math.sin(a) * 12;
+      ctx.moveTo(px + 6.5, py);
+      ctx.arc(px, py, 6.5, 0, TAU);
+    }
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#3a1d2e';
+    ctx.stroke();
+    ctx.fillStyle = '#9a93a6';
     ctx.fill();
-    ctx.fillStyle = 'rgba(190,170,145,.9)';
     ctx.beginPath();
-    ctx.arc(-4, -4, 11, 0, TAU);
+    ctx.arc(0, 0, 13, 0, TAU);
     ctx.fill();
-    for (let k = 0; k < 5; k++) {
-      const a = t * 1.6 + k * 1.3;
-      ctx.fillStyle = 'rgba(120,100,80,.7)';
+    // светлый бок
+    ctx.fillStyle = 'rgba(226,220,236,.85)';
+    ctx.beginPath();
+    ctx.arc(-4, -5, 7, 0, TAU);
+    ctx.fill();
+    // глазки смотрят навстречу Мии
+    ctx.fillStyle = '#3a1d2e';
+    ctx.beginPath();
+    ctx.arc(-6, 1, 2.2, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(1, 1, 2.2, 0, TAU);
+    ctx.fill();
+    // пылинки вокруг
+    for (let k = 0; k < 4; k++) {
+      const a = t * 1.6 + k * 1.57;
+      ctx.fillStyle = 'rgba(58,29,46,.45)';
       ctx.beginPath();
-      ctx.arc(Math.cos(a) * 13, Math.sin(a) * 13, 1.8, 0, TAU);
+      ctx.arc(Math.cos(a) * 23, Math.sin(a) * 23, 1.8, 0, TAU);
       ctx.fill();
     }
     ctx.restore();

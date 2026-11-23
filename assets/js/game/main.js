@@ -150,6 +150,7 @@ function refreshMenu() {
   const next = save.nextRound(ROUNDS.length);
   const started = Object.keys(d.levels).length > 0;
   $('#btnPlayLabel').textContent = allDone ? 'Играть снова' : started ? roundLabel(ROUNDS[next - 1]) : 'Играть';
+  $('#btnPlay').classList.toggle('btn--long', started && !allDone); // длинная подпись — шрифт мельче, без переноса
   const endlessOpen = DEV || (d.levels[1] && d.levels[1].done);
   const be = $('#btnEndless');
   be.setAttribute('aria-disabled', endlessOpen ? 'false' : 'true');
@@ -226,6 +227,16 @@ function keepAwake(on) {
   }
 }
 
+/** Где Мия парит в меню. На обычном экране — по центру, между названием и кнопками.
+    На низком (телефон боком) кнопки занимают это место и закрывали её наполовину, поэтому там она
+    отлетает вправо от названия. Порог тот же, что у правила «низкий экран» в game.css. */
+function placeMenuMia() {
+  const low = (canvas.clientHeight || 720) <= 520;
+  sim.viewW = renderer.viewW;
+  sim.miaX = low ? renderer.viewW - 150 : renderer.viewW / 2;
+  sim.hoverY = low ? 290 : 400; // ниже счётчика сердечек: над головой ещё облачко с репликой
+}
+
 /** Фоновая сцена для меню: Мия парит по центру, мир медленно плывёт. */
 function attract() {
   const next = save.nextRound(ROUNDS.length);
@@ -233,9 +244,8 @@ function attract() {
   sim.gates = [];
   sim.items = [];
   sim.finishX = null;
-  sim.miaX = renderer.viewW / 2;
-  sim.hoverY = 400;
   sim.attract = true;
+  placeMenuMia();
   renderer.finishLabel = '';
   sound.setTheme(sim.theme);
 }
@@ -417,7 +427,17 @@ function startRound(id) {
   renderer.particles.length = 0;
   renderer.finishLabel = l.finale ? CONFIG.her.name : ''; // у большого сердца в конце каждого уровня — её имя
   sound.setTheme(l.theme);
-  $('#introEyebrow').textContent = `${roundLabel(l)} из ${ROUNDS_PER_LEVEL} · ${l.gates} ворот`;
+  // «Уровень 2 · раунд 10 из 10 · ворот: 44»: на узком экране строка переносится только между частями.
+  // «ворот: 22» верно при любом числе, «22 ворот» — нет.
+  const eyebrow = $('#introEyebrow');
+  eyebrow.textContent = '';
+  [`${roundLabel(l)} из ${ROUNDS_PER_LEVEL}`, `ворот: ${l.gates}`].forEach((part, i) => {
+    if (i) eyebrow.append(' · ');
+    const span = document.createElement('span');
+    span.className = 'nowrap';
+    span.textContent = part;
+    eyebrow.append(span);
+  });
   $('#introName').textContent = roundName(l);
   $('#introStory').textContent = l.story;
   $('#introTip').textContent = l.tip || ''; // подсказка живёт в самом раунде (levels.js), а не привязана к номеру
@@ -1043,8 +1063,7 @@ function resize() {
   if (screen === 'play' || screen === 'pause') aimHearts();
   if (!sim) return;
   if (sim.attract) {
-    sim.viewW = w;
-    sim.miaX = w / 2;
+    placeMenuMia();
   } else if (sim.status === 'ready') {
     // до старта можно безболезненно пересоздать уровень под новый размер
     const keep = { mode: sim.mode, roundId: sim.round ? sim.round.id : 1 };

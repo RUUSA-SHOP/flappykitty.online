@@ -497,7 +497,7 @@ await test('финал первого уровня: записка № 10, пе�
   equal(await page.evaluate(() => [...document.querySelectorAll('#levelList .level__art > span')].map((e) => e.textContent).join(' ')), [...upTo(PER), ...upTo(PER)].join(' '), 'раунды в каждом уровне нумеруются с единицы');
   await page.click(`#levelList .level[data-round="${PER}"]`);
   await waitScreen(page, 'intro');
-  equal(await text(page, '#introEyebrow'), `Уровень 1 · раунд ${PER} из ${PER} · ${ROUNDS[PER - 1].gates} ворот`, 'строка над названием');
+  equal(await text(page, '#introEyebrow'), `Уровень 1 · раунд ${PER} из ${PER} · ворот: ${ROUNDS[PER - 1].gates}`, 'строка над названием');
   await page.click('#btnGo');
   equal((await fastForward(page, 'win')).status, 'won', 'десятый раунд пройден');
   await waitScreen(page, 'win');
@@ -520,7 +520,7 @@ await test('финал первого уровня: записка № 10, пе�
   equal(await text(page, '#btnNoteNext'), 'Дальше · уровень 2', 'после письма — второй уровень');
   await page.click('#btnNoteNext');
   await waitScreen(page, 'intro');
-  equal(await text(page, '#introEyebrow'), `Уровень 2 · раунд 1 из ${PER} · ${ROUNDS[PER].gates} ворот`, 'второй уровень начинается с первого раунда');
+  equal(await text(page, '#introEyebrow'), `Уровень 2 · раунд 1 из ${PER} · ворот: ${ROUNDS[PER].gates}`, 'второй уровень начинается с первого раунда');
   equal(await text(page, '#introName'), ROUNDS[PER].name, 'первый раунд второго уровня');
   const d = await stored(page);
   assert(d.notes.includes(PER) && d.seenNotes.includes(PER), 'записка и письмо первого уровня открыты и прочитаны');
@@ -539,7 +539,7 @@ await test('финал второго уровня: записка № 20, по�
   await page.click('#btnPlay');
   await waitScreen(page, 'intro');
   assert((await text(page, '#introName')).startsWith('Дорога к'), 'название финального раунда');
-  equal(await text(page, '#introEyebrow'), `Уровень 2 · раунд ${PER} из ${PER} · ${ROUNDS[TOTAL - 1].gates} ворот`, 'строка над названием');
+  equal(await text(page, '#introEyebrow'), `Уровень 2 · раунд ${PER} из ${PER} · ворот: ${ROUNDS[TOTAL - 1].gates}`, 'строка над названием');
   await page.click('#btnGo');
   equal((await fastForward(page, 'win')).status, 'won', 'финальный раунд пройден');
   await waitScreen(page, 'win');
@@ -663,7 +663,7 @@ await test('новые раунды: вступление с подсказко�
     equal(await text(page, '#introName'), l.name, `название раунда ${id}`);
     equal(await text(page, '#introTip'), l.tip, `подсказка раунда ${id}`);
     equal(await page.evaluate(() => window.__fk.sim.theme), l.theme, `мир раунда ${id}`);
-    equal(await text(page, '#introEyebrow'), `${roundLabel(id)} из ${PER} · ${l.gates} ворот`, `строка над названием раунда ${id}`);
+    equal(await text(page, '#introEyebrow'), `${roundLabel(id)} из ${PER} · ворот: ${l.gates}`, `строка над названием раунда ${id}`);
     await page.evaluate(() => {
       const fk = window.__fk;
       fk.beginPlay();
@@ -893,7 +893,7 @@ await test('адреса: ?round=N (и старое ?level=N), ?dev=1, ?reset=1'
 
   const dev = track(await game({ expect: 'intro' }, '?dev=1&round=15'));
   equal(await text(dev, '#introName'), 'Двор', '?dev=1 открывает любой раунд');
-  equal(await text(dev, '#introEyebrow'), `Уровень 2 · раунд 5 из ${PER} · ${ROUNDS[14].gates} ворот`, 'раунд 15 — это пятый раунд второго уровня');
+  equal(await text(dev, '#introEyebrow'), `Уровень 2 · раунд 5 из ${PER} · ворот: ${ROUNDS[14].gates}`, 'раунд 15 — это пятый раунд второго уровня');
   await dev.close();
 
   const reset = track(await game({ save: { hearts: 77, totalHearts: 77, levels: { 1: { done: true, stars: 3, hearts: 9 } }, notes: [1], plays: 4 } }, '?reset=1'));
@@ -938,6 +938,119 @@ await test('игра помещается на маленьком и на леж
       return r.top >= 0 && r.bottom <= innerHeight + 1;
     });
     assert(btn, `вступление ${w}×${h}: кнопка «Полетели!» не помещается`);
+  }
+});
+
+await test('длинные подписи: «Уровень 2 · раунд 10» и «Дальше · уровень 2» остаются в одну строку на узком телефоне и на телефоне боком', async (track) => {
+  // Вторая строка делает главную кнопку выше, и она закрывает Мию в меню. Проверяем самые длинные подписи.
+  const levels = {};
+  for (let i = 1; i < TOTAL; i++) levels[i] = { done: true, stars: 3, hearts: 20 };
+  const saved = { rounds: TOTAL, levels, notes: upTo(TOTAL - 1), seenNotes: upTo(TOTAL - 1), plays: 9 };
+  // одна строка: у текста один прямоугольник, кнопка не выше обычной и текст из неё не вылезает
+  const oneLine = (page, sel) => page.evaluate((s) => {
+    const el = document.querySelector(s);
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const tops = new Set([...range.getClientRects()].filter((r) => r.width > 1).map((r) => Math.round(r.top / 4)));
+    const box = el.closest('.btn, .eyebrow') || el;
+    const r = box.getBoundingClientRect();
+    // текст лежит внутри своей кнопки (или строки), а она — внутри экрана.
+    // scrollWidth тут не годится: у главной кнопки есть «ореол», который выступает за край и раздувает его
+    const t = range.getBoundingClientRect();
+    return { lines: tops.size, fits: t.left >= r.left - 1 && t.right <= r.right + 1 && r.left >= 0 && r.right <= innerWidth + 1, text: el.textContent.trim() };
+  }, sel);
+  for (const [w, h] of [[320, 568], [360, 640], [390, 844]]) {
+    const page = track(await game({ w, h, touch: true, save: saved }));
+    await settle(page);
+    const play = await oneLine(page, '#btnPlayLabel');
+    equal(play, { lines: 1, fits: true, text: `Уровень 2 · раунд ${PER}` }, `меню ${w}×${h}: главная кнопка`);
+    // Мия парит над кнопками: кнопка не должна её закрывать
+    const gap = await page.evaluate(() => {
+      const fk = window.__fk;
+      const at = fk.renderer.toCss(fk.sim.miaX, fk.sim.hoverY);
+      const c = document.querySelector('canvas').getBoundingClientRect();
+      return Math.round(document.getElementById('btnPlay').getBoundingClientRect().top - (c.top + at.y));
+    });
+    assert(gap >= 0, `меню ${w}×${h}: главная кнопка закрывает Мию (на ${-gap} px)`);
+
+    await page.evaluate((id) => window.__fk.startRound(id), TOTAL);
+    await waitScreen(page, 'intro');
+    await settle(page);
+    const parts = await page.evaluate(() => [...document.querySelectorAll('#introEyebrow .nowrap')].map((e) => e.getClientRects().length));
+    equal(parts, [1, 1], `вступление ${w}×${h}: части строки над названием не рвутся посередине`);
+    assert((await oneLine(page, '#introEyebrow')).fits, `вступление ${w}×${h}: строка над названием вылезла за панель`);
+
+    for (const [id, want] of [[PER, 'Дальше · уровень 2'], [TOTAL - 1, `Дальше · раунд ${PER}`]]) {
+      await page.evaluate((n) => {
+        const fk = window.__fk;
+        fk.startRound(n);
+        fk.beginPlay();
+        fk.sim.flap();
+        fk.sim.status = 'won';
+        fk.showWin();
+      }, id);
+      await waitScreen(page, 'win');
+      await settle(page);
+      equal(await oneLine(page, '#btnWinNext'), { lines: 1, fits: true, text: want }, `победа ${w}×${h}, раунд ${id}: кнопка «Дальше»`);
+    }
+    await page.close();
+  }
+
+  // Телефон боком: кнопки стоят в два ряда внизу. Ни одна не уезжает за край кадра, все подписи в одну строку,
+  // а Мия парит сбоку от названия — кнопки и счётчик сердечек её не закрывают.
+  for (const [w, h] of [[568, 320], [640, 360], [740, 360], [844, 390]]) {
+    const page = track(await game({ w, h, touch: true, save: saved }));
+    await settle(page);
+    equal(await oneLine(page, '#btnPlayLabel'), { lines: 1, fits: true, text: `Уровень 2 · раунд ${PER}` }, `меню боком ${w}×${h}: главная кнопка`);
+    assert((await oneLine(page, '#btnEndlessLabel')).lines === 1, `меню боком ${w}×${h}: «Бесконечный полёт» в две строки`);
+    const m = await page.evaluate(() => {
+      const fk = window.__fk;
+      const stage = document.getElementById('stage').getBoundingClientRect();
+      const c = document.querySelector('canvas').getBoundingClientRect();
+      const at = fk.renderer.toCss(fk.sim.miaX, fk.sim.hoverY);
+      const half = 34 * fk.renderer.scale / 0.5625; // половина Мии на экране
+      const mia = { left: c.left + at.x - half, right: c.left + at.x + half, top: c.top + at.y - half, bottom: c.top + at.y + half };
+      const hits = (r) => r.left < mia.right && r.right > mia.left && r.top < mia.bottom && r.bottom > mia.top;
+      const btns = [...document.querySelectorAll('.screen[data-name="menu"] .btn')].map((b) => b.getBoundingClientRect());
+      const menu = document.querySelector('.screen[data-name="menu"]');
+      return {
+        outside: btns.filter((r) => r.left < stage.left - 1 || r.right > stage.right + 1 || r.bottom > stage.bottom + 1).length,
+        covered: [...btns, ...[...menu.querySelectorAll('.wallet, .logo, .menu__sub, .iconbtn')].map((e) => e.getBoundingClientRect())].filter(hits).length,
+        miaInside: mia.left >= c.left && mia.right <= c.right,
+      };
+    });
+    equal(m, { outside: 0, covered: 0, miaInside: true }, `меню боком ${w}×${h}`);
+
+    // Окна на низком экране: верх не уезжает за край (раньше строка над названием пропадала),
+    // вступление помещается целиком, а до нижней кнопки окна победы можно долистать.
+    const panel = (name) => page.evaluate((n) => {
+      const scr = document.querySelector(`.screen[data-name="${n}"]`);
+      const stage = document.getElementById('stage').getBoundingClientRect();
+      const p = scr.querySelector('.panel');
+      scr.scrollTop = 0;
+      const top = Math.round(p.getBoundingClientRect().top - stage.top);
+      const fitsAtOnce = p.getBoundingClientRect().bottom <= stage.bottom + 1;
+      scr.scrollTop = scr.scrollHeight;
+      const reach = p.getBoundingClientRect().bottom <= stage.bottom + 1;
+      scr.scrollTop = 0;
+      return { top: top >= 0, fitsAtOnce, reach };
+    }, name);
+    await page.evaluate((id) => window.__fk.startRound(id), TOTAL);
+    await waitScreen(page, 'intro');
+    await settle(page);
+    equal(await panel('intro'), { top: true, fitsAtOnce: true, reach: true }, `вступление боком ${w}×${h}`);
+    await page.evaluate(() => {
+      const fk = window.__fk;
+      fk.beginPlay();
+      fk.sim.flap();
+      fk.sim.status = 'won';
+      fk.showWin();
+    });
+    await waitScreen(page, 'win');
+    await settle(page);
+    const won = await panel('win');
+    equal({ top: won.top, reach: won.reach }, { top: true, reach: true }, `победа боком ${w}×${h}`);
+    await page.close();
   }
 });
 
