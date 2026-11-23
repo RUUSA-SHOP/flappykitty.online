@@ -551,13 +551,14 @@ await test('старое сохранение (шесть уровней): фи�
   await page.click('#btnLevels');
   await waitScreen(page, 'levels');
   const cards = await page.evaluate(() => [...document.querySelectorAll('#levelList .level')].map((c) => `${c.disabled ? 'закрыт' : 'открыт'}:${c.querySelectorAll('.level__stars .on').length}`));
-  // Ожидание строится из LEVELS: после переноса финала на 10-й открыты 1–5, затем 6-й (ждёт прохождения),
-  // 7–9 закрыты, 10-й открыт (его уже проходили). Так проверка не разъедется при добавлении уровней.
+  // Старое сохранение знало один финал — шестой. Переезжает он на ПЕРВЫЙ финал новой сетки
+  // (это уровень 10 из 20), а не на последний. Открыты: 1–5, шестой (ждёт прохождения) и сам финал.
+  const firstFinal = CONFIG.letters[0].level;
   const want = Array.from({ length: TOTAL }, (_, i) => {
     const id = i + 1;
     if (id <= 5) return 'открыт:3';
     if (id === 6) return 'открыт:0';
-    if (id === TOTAL) return 'открыт:2';
+    if (id === firstFinal) return 'открыт:2';
     return 'закрыт:0';
   });
   equal(cards, want, 'карточки уровней');
@@ -567,7 +568,7 @@ await test('старое сохранение (шесть уровней): фи�
 
   const love = track(await open('love.html', { save: saved }));
   // Открыто: записки пройденных раундов + обе карточки финала, который уже проходили.
-  const oldDone = new Set([1, 2, 3, 4, 5, TOTAL]);
+  const oldDone = new Set([1, 2, 3, 4, 5, firstFinal]);
   const openNotes = CONFIG.notes.filter((n) => oldDone.has(n.level)).length;
   equal(await text(love, '#noteCount'), `Открыто ${openNotes + 2} из ${CARDS}`, 'счётчик записок');
   assert(!(await love.evaluate(() => document.querySelector('#final .note').classList.contains('note--locked'))), 'письмо, которое уже открывали, остаётся открытым');
