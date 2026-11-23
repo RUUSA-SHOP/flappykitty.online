@@ -575,7 +575,10 @@ await test('старое сохранение (шесть уровней): фи�
   equal(await text(love, '#noteCount'), `Открыто ${openNotes + 2} из ${CARDS}`, 'счётчик записок');
   assert(!(await love.evaluate(() => document.querySelector('#final .note').classList.contains('note--locked'))), 'письмо, которое уже открывали, остаётся открытым');
   equal(await love.evaluate(() => document.querySelectorAll('#notes .note--locked').length), CONFIG.notes.length - openNotes, 'записки новых раундов ещё заперты');
-  equal(await love.evaluate(() => [...document.querySelectorAll('.note--locked a')].map((a) => a.getAttribute('href'))), ['play.html?level=6'], 'кнопка «Пройти уровень» — у первого нового раунда');
+  // «Пройти уровень» есть только у запертых, но доступных записок: шестой раунд и 11-й
+  // (второй финал пройден, значит следующий за ним уровень открыт).
+  const reachable = [6, firstFinal + 1].map((id) => `play.html?level=${id}`);
+  equal(await love.evaluate(() => [...document.querySelectorAll('.note--locked a')].map((a) => a.getAttribute('href'))), reachable, 'кнопка «Пройти уровень» — у открытых, но ещё не пройденных раундов');
 });
 
 await test('новые раунды: вступление с подсказкой, своя записка и фото из альбома', async (track) => {
