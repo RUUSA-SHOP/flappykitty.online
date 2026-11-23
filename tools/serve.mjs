@@ -4,7 +4,7 @@
    node tools/serve.mjs                    → http://localhost:8000
    PORT=3000 node tools/serve.mjs          → другой порт
    node tools/serve.mjs --base=/flappykitty.online/
-       → сайт в подпапке, как на ruusa-shop.github.io/flappykitty.online/
+       → сайт в подпапке, как на miagpt.github.io/flappykitty.online/
          (так проверяется, что все пути в проекте относительные) */
 
 import http from 'node:http';

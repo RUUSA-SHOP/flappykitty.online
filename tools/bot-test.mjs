@@ -1,10 +1,10 @@
-/* Проверка баланса: бот-«автопилот» пролетает каждый уровень много раз.
+/* Проверка баланса: бот-«автопилот» пролетает каждый раунд много раз.
    Запуск: npm test
-   Если бот стабильно проходит уровень — уровень точно проходим человеком
+   Если бот стабильно проходит раунд — раунд точно проходим человеком
    (бот не видит ни капель, ни огурцов — только правило «держись центра просвета»). */
 
 import { Sim } from '../assets/js/game/sim.js';
-import { LEVELS, WORLD } from '../assets/js/game/levels.js';
+import { ROUNDS, WORLD } from '../assets/js/game/levels.js';
 
 const DT = 1 / 120;
 
@@ -39,18 +39,18 @@ function run(opts, skill, maxT = 400) {
 
 let failed = false;
 const RUNS = 150;
-console.log('Сюжет: бот × ' + RUNS + ' забегов на уровень (экран телефона 380 и десктоп 960)\n');
+console.log('Сюжет: бот × ' + RUNS + ' забегов на раунд (экран телефона 380 и десктоп 960)\n');
 for (const viewW of [380, 960]) {
-  for (const lvl of LEVELS) {
+  for (const lvl of ROUNDS) {
     let wins = 0, lost = 0, stars = 0, time = 0, hearts = 0, total = 0;
     for (let i = 0; i < RUNS; i++) {
-      const sim = run({ mode: 'story', levelId: lvl.id, viewW, seed: 1000 + i * 7919 }, { noise: 14, phase: i });
+      const sim = run({ mode: 'story', roundId: lvl.id, viewW, seed: 1000 + i * 7919 }, { noise: 14, phase: i });
       if (sim.status === 'won') { wins++; stars += sim.stars(); time += sim.t; }
       lost += sim.lostLives; hearts += sim.pathHearts; total += sim.heartsTotal;
     }
     const pct = Math.round((wins / RUNS) * 100);
     console.log(
-      `W=${viewW}  ур.${lvl.id} ${lvl.name.padEnd(16)} побед ${String(pct).padStart(3)}%  ` +
+      `W=${viewW}  ур.${lvl.level} р.${String(lvl.no).padStart(2)} ${lvl.name.padEnd(24)} побед ${String(pct).padStart(3)}%  ` +
       `жизней теряет ${(lost / RUNS).toFixed(2)}  звёзд ${(stars / Math.max(1, wins)).toFixed(2)}  ` +
       `длится ${(time / Math.max(1, wins)).toFixed(0)}с  сердечек ${Math.round((hearts / total) * 100)}%`
     );
@@ -67,5 +67,5 @@ for (const viewW of [380, 960]) {
   if (scores[RUNS >> 1] < 5) failed = true;
 }
 
-if (failed) { console.error('\n✗ Баланс сломан: какой-то уровень слишком сложный.'); process.exit(1); }
-console.log('\n✓ Все уровни проходимы.');
+if (failed) { console.error('\n✗ Баланс сломан: какой-то раунд слишком сложный.'); process.exit(1); }
+console.log('\n✓ Все раунды проходимы.');

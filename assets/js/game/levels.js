@@ -1,9 +1,16 @@
-/* Уровни сюжетного режима и облики Мии.
-   Чтобы добавить уровень — допиши объект в LEVELS и тему в themes.js.
-   Последний уровень в списке — финал: после него открывается письмо (см. config.js).
+/* Уровни, раунды и облики Мии.
+
+   Уровень — это десять раундов. Уровней два, раундов двадцать.
+   После каждого раунда Мия оставляет записку, после десятого раунда уровня приходит ещё и письмо.
+
+   ROUNDS — все раунды подряд, id от 1 до 20: первые десять — первый уровень, вторые десять — второй.
+   Чтобы поменять раунд — правь объект в ROUNDS; мир раунда (theme) рисуется в themes.js.
+   Последний раунд уровня помечен finale: после него — письмо.
    Опасности (hazards): drop — капли из кранов, balloon — шарики с сердечками, cucumber — огурцы,
    wind — ветер, rain — капли с туч, frog — прыгающие лягушата, yarn — клубки с сердечками,
-   bat — летучие мыши. */
+   bat — летучие мыши, dust — клубки пыли, roomba — робот-пылесос (тянет вниз), bubble — мыльные пузыри,
+   bird — голуби, steam — пар (подбрасывает вверх), bun — летящие булочки, soldier — оловянные солдатики,
+   ember — угольки из камина, lightning — молнии. */
 
 export const WORLD = {
   H: 720, // высота игрового мира в условных пикселях
@@ -15,7 +22,19 @@ export const WORLD = {
   GATE_W: 78,
 };
 
+/** Сколько раундов в одном уровне. */
+export const ROUNDS_PER_LEVEL = 10;
+
+/** Уровни. Раунды уровня — это ROUNDS с тем же level (см. roundsOf). */
 export const LEVELS = [
+  { id: 1, name: 'Первая дорога', about: 'От дивана до самого главного сердца' },
+  { id: 2, name: 'Вторая дорога', about: 'Чердак, гроза и рассвет' },
+];
+
+export const ROUNDS = [
+
+  /* ---------- Уровень 1. Первая дорога ---------- */
+
   {
     id: 1,
     theme: 'living',
@@ -156,33 +175,204 @@ export const LEVELS = [
     id: 10,
     theme: 'love',
     name: 'Дорога к Насте',
-    tagline: 'Финал',
-    story: 'Последний перелёт. Там, в конце, ждёт самое главное сердце.',
-    tip: 'Здесь всё сразу. Долети до большого сердца.',
-    gates: 24,
-    speed: 212,
-    gap: 196,
+    tagline: 'Финал первого уровня',
+    story: 'Последний перелёт. Там, в конце, ждёт самое главное сердце и первое письмо.',
+    tip: 'Самый длинный перелёт первого уровня. Опасностей нет — только не торопись.',
+    gates: 36,
+    speed: 205,
+    gap: 202,
     spacing: 300,
-    move: 40,
-    hazards: ['balloon', 'cucumber'],
+    move: 28,
+    // финал первого уровня длинный, но добрый: только шарики с сердечками
+    hazards: ['balloon'],
     powerups: ['shield', 'magnet', 'catnip'],
+    finale: true, // последний раунд первого уровня: после него — первое письмо
+  },
+
+  /* ---------- Уровень 2. Вторая дорога ---------- */
+
+  {
+    id: 11,
+    theme: 'attic',
+    name: 'Чердак',
+    tagline: 'Пыль и открытия',
+    story: 'Выше шкафа, за коробками — целый мир. Тут пахнет старыми письмами и приключениями.',
+    tip: 'Клубки пыли плывут навстречу. Они медленные — облети сверху или снизу.',
+    gates: 15,
+    speed: 192,
+    gap: 210,
+    spacing: 305,
+    move: 10,
+    hazards: ['dust'],
+    powerups: ['shield', 'magnet', 'catnip'],
+  },
+  {
+    id: 12,
+    theme: 'vacuum',
+    name: 'Робот-пылесос',
+    tagline: 'Он не злой, он работает',
+    story: 'Робот катается по квартире и уверен, что Мия — это очень большой комок шерсти.',
+    tip: 'Над роботом Мию тянет вниз. Пока летишь над ним — маши чаще.',
+    gates: 17,
+    speed: 200,
+    gap: 204,
+    spacing: 302,
+    move: 28,
+    hazards: ['roomba'],
+    powerups: ['shield', 'magnet', 'catnip'],
+  },
+  {
+    id: 13,
+    theme: 'yarn',
+    name: 'Корзинка с нитками',
+    tagline: 'Клубок за клубком',
+    story: 'Корзинка опрокинулась, и нитки разбежались по всей комнате. Мия летит их догонять.',
+    tip: 'Передышка. Лови клубки — в каждом два сердечка.',
+    gates: 18,
+    speed: 196,
+    gap: 208,
+    spacing: 305,
+    move: 24,
+    hazards: ['yarn'],
+    powerups: ['shield', 'magnet', 'catnip'],
+  },
+  {
+    id: 14,
+    theme: 'bath',
+    name: 'Ванная',
+    tagline: 'Мокрое дело',
+    story: 'Кран капает, мыльные пузыри летят, полотенца натянуты как паруса. Мия против купания.',
+    tip: 'С потолка падают капли. Пузырь всплывает, когда Мия подлетает, — не задень.',
+    gates: 16,
+    speed: 194,
+    gap: 218,
+    spacing: 305,
+    move: 22,
+    hazards: ['drop', 'bubble'],
+    powerups: ['shield', 'magnet', 'catnip'],
+  },
+  {
+    id: 15,
+    theme: 'street',
+    name: 'Двор',
+    tagline: 'Первый выход',
+    story: 'Первый раз без дождевика на улице. Голуби относятся к Мии с подозрением.',
+    tip: 'Стрелки показывают ветер. Голубь взлетает с земли прямо перед Мией — пропусти его.',
+    gates: 19,
+    speed: 198,
+    gap: 208,
+    spacing: 302,
+    move: 30,
+    hazards: ['wind', 'bird'],
+    powerups: ['shield', 'magnet', 'catnip'],
+  },
+  {
+    id: 16,
+    theme: 'bakery',
+    name: 'Пекарня',
+    tagline: 'Пахнет домом',
+    story: 'Тёплый воздух, мука в воздухе и булочки на полках. Мия официально тут работает дегустатором.',
+    tip: 'Пар из кастрюли подбрасывает Мию вверх. Булочки летят навстречу — их облетай.',
+    gates: 17,
+    speed: 188,
+    gap: 218,
+    spacing: 306,
+    move: 14,
+    hazards: ['steam', 'bun'],
+    powerups: ['shield', 'magnet', 'catnip'],
+  },
+  {
+    id: 17,
+    theme: 'toybox',
+    name: 'Ящик с игрушками',
+    tagline: 'Солдатики в атаке',
+    story: 'Оловянные солдатики построились и пошли в атаку. По воздуху. Мия против целой армии.',
+    tip: 'Солдатики летят навстречу строго по прямой. Увидела — уходи выше или ниже.',
+    gates: 20,
+    speed: 200,
+    gap: 206,
+    spacing: 300,
+    move: 28,
+    hazards: ['soldier'],
+    powerups: ['shield', 'magnet', 'catnip'],
+  },
+  {
+    id: 18,
+    theme: 'fireplace',
+    name: 'Камин',
+    tagline: 'Тепло и угольки',
+    story: 'Угольки взлетают вверх, а Мия летит мимо, стараясь не подпалить усы.',
+    tip: 'Угольки вылетают из огня, когда Мия подлетает. Смотри вниз и пропускай их.',
+    gates: 20,
+    speed: 200,
+    gap: 206,
+    spacing: 302,
+    move: 28,
+    hazards: ['ember'],
+    powerups: ['shield', 'magnet', 'catnip'],
+  },
+  {
+    id: 19,
+    theme: 'storm',
+    name: 'Гроза',
+    tagline: 'Самый страшный вечер',
+    story: 'Мия всегда боялась грома. Сегодня она летит прямо в грозу — и гром боится первым.',
+    tip: 'В небе загорается точка — туда ударит молния. Пролетай ниже неё. И не забывай про капли.',
+    gates: 20,
+    speed: 204,
+    gap: 206,
+    spacing: 300,
+    move: 30,
+    hazards: ['lightning', 'rain'],
+    powerups: ['shield', 'magnet', 'catnip'],
+  },
+  {
+    id: 20,
+    theme: 'dawn',
+    name: 'Дорога к Насте · рассвет',
+    tagline: 'Финал',
+    story: 'Всё небо в её честь. Последний, самый длинный перелёт — и второе письмо.',
+    tip: 'Самый длинный перелёт игры. Под светящейся точкой пролетай ниже: в неё бьёт молния.',
+    gates: 44,
+    speed: 208,
+    gap: 200,
+    spacing: 300,
+    move: 34,
+    hazards: ['lightning', 'balloon'],
+    powerups: ['shield', 'magnet', 'catnip'],
+    finale: true, // последний раунд второго уровня: после него — второе письмо
   },
 ];
 
-/** Миры бесконечного режима — в том же порядке, что и сюжет. */
-export const ENDLESS_THEMES = ['living', 'kitchen', 'party', 'night', 'winter', 'rain', 'pond', 'plush', 'gothic', 'love'];
-const ENDLESS_STEP = 6; // мир меняется каждые шесть ворот: за средний забег видно больше половины миров
+// У каждого раунда: level — номер уровня (1 или 2), no — номер раунда внутри уровня (1–10).
+ROUNDS.forEach((r, i) => {
+  r.level = Math.floor(i / ROUNDS_PER_LEVEL) + 1;
+  r.no = (i % ROUNDS_PER_LEVEL) + 1;
+});
+
+/** Раунды одного уровня. */
+export const roundsOf = (levelId) => ROUNDS.filter((r) => r.level === levelId);
+
+/** Миры бесконечного режима — все миры сюжета. Порядок в забеге каждый раз свой (см. Sim), начинается всегда с гостиной. */
+export const ENDLESS_THEMES = ROUNDS.map((r) => r.theme);
+const ENDLESS_STEP = 6; // мир меняется каждые шесть ворот: за средний забег видно шесть миров
+const ENDLESS_CUCUMBERS_FROM = 60; // с этих ворот к обитателю мира добавляются огурцы
 // У каждого мира в бесконечном режиме — свой обитатель из сюжета (в гостиной спокойно: только шарики).
-const ENDLESS_HAZARD = { living: 'balloon', kitchen: 'drop', party: 'balloon', night: 'cucumber', winter: 'wind', rain: 'rain', pond: 'frog', plush: 'yarn', gothic: 'bat', love: 'balloon' };
+const ENDLESS_HAZARD = {
+  living: 'balloon', kitchen: 'drop', party: 'balloon', night: 'cucumber', winter: 'wind',
+  rain: 'rain', pond: 'frog', plush: 'yarn', gothic: 'bat', love: 'balloon',
+  attic: 'dust', vacuum: 'roomba', yarn: 'yarn', bath: 'drop', street: 'bird',
+  bakery: 'bun', toybox: 'soldier', fireplace: 'ember', storm: 'lightning', dawn: 'cucumber',
+};
 
 /** Параметры бесконечного режима: сложность растёт с каждыми воротами. */
-export function endlessParams(passed) {
+export function endlessParams(passed, worlds = ENDLESS_THEMES) {
   const k = Math.min(1, passed / 45);
-  const theme = ENDLESS_THEMES[Math.floor(passed / ENDLESS_STEP) % ENDLESS_THEMES.length];
+  const theme = worlds[Math.floor(passed / ENDLESS_STEP) % worlds.length];
   // первые два мира — разминка: сначала пусто, потом только шарики с сердечками; дальше у каждого мира свой обитатель
   const hazards = passed < ENDLESS_STEP ? [] : passed < ENDLESS_STEP * 2 ? ['balloon'] : [ENDLESS_HAZARD[theme]];
-  // со второго круга по мирам к обитателю добавляются огурцы (кроме мира летучих мышей — там хватает своих)
-  if (passed >= ENDLESS_STEP * ENDLESS_THEMES.length && !hazards.includes('cucumber') && !hazards.includes('bat')) hazards.push('cucumber');
+  // в долгом забеге к обитателю добавляются огурцы (кроме мира летучих мышей — там хватает своих)
+  if (passed >= ENDLESS_CUCUMBERS_FROM && !hazards.includes('cucumber') && !hazards.includes('bat')) hazards.push('cucumber');
   return {
     theme,
     speed: 172 + 70 * k,

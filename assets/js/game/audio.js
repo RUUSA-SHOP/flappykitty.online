@@ -1,7 +1,11 @@
 /* Flappy Kitty · звук. Всё синтезируется через Web Audio —
    ни одного аудиофайла, поэтому игра грузится мгновенно. */
 
-const ROOTS = { living: 0, kitchen: 2, party: 5, night: -3, winter: 7, rain: -5, rainbow: -5, pond: 4, plush: 9, gothic: -1, love: 0, letter: -2 };
+const ROOTS = {
+  living: 0, kitchen: 2, party: 5, night: -3, winter: 7, rain: -5, rainbow: -5, pond: 4, plush: 9, gothic: -1, love: 0, letter: -2,
+  email: 3, // музыка второго письма
+  attic: -7, vacuum: 1, yarn: 6, bath: 8, street: -4, bakery: 3, toybox: 5, fireplace: -2, storm: -9, dawn: 2,
+};
 // Характер музыки по мирам. Чего нет в таблице — играет как «шкатулка» по умолчанию (100 ударов, мажор).
 //   bpm — темп; minor — минорный круг аккордов; high — на сколько полутонов поднят перебор;
 //   arp — рисунок перебора (номера нот аккорда); wave — тембр перебора; len — длина ноты перебора.
@@ -16,6 +20,18 @@ const STYLE = {
   pond: { bpm: 106, arp: [0, 2, 0, 1, 2, 1, 0, 2], len: 0.22, wave: 'triangle' },
   plush: { bpm: 84, high: 12, arp: [0, 1, 2, 1, 2, 1, 0, 1], len: 0.9 },
   gothic: { bpm: 108, minor: true, arp: [0, 1, 2, 0, 2, 1, 2, 1], len: 0.28, wave: 'square' },
+  // ---- второй уровень ----
+  attic: { bpm: 88, minor: true, arp: [0, 1, 2, 1, 0, 1, 2, 1], len: 0.5, wave: 'triangle' }, // медленно, как пыль в луче света
+  vacuum: { bpm: 116, arp: [0, 2, 0, 2, 1, 2, 0, 2], len: 0.24, wave: 'square' }, // ритмично, как моторчик
+  yarn: { bpm: 100, high: 12, arp: [0, 2, 1, 2, 0, 2, 1, 2], len: 0.34 }, // игриво
+  bath: { bpm: 94, arp: [0, 1, 2, 1, 2, 1, 0, 1], len: 0.42, wave: 'triangle' }, // капли
+  street: { bpm: 104, arp: [0, 2, 1, 2, 0, 2, 1, 2], len: 0.4 }, // прогулка
+  bakery: { bpm: 92, high: 12, arp: [0, 1, 2, 1, 0, 1, 2, 1], len: 0.7 }, // тепло и мягко
+  toybox: { bpm: 122, arp: [0, 2, 1, 2, 0, 1, 2, 1], len: 0.2 }, // марш солдатиков
+  fireplace: { bpm: 80, arp: [0, 1, 2, 1, 0, 2, 1, 2], len: 0.8, wave: 'triangle' }, // у огня
+  storm: { bpm: 112, minor: true, arp: [0, 1, 2, 0, 2, 1, 2, 1], len: 0.26, wave: 'square' }, // тревожно
+  dawn: { bpm: 76, high: 12, arp: [0, 2, 1, 2, 0, 2, 1, 2], len: 0.9 }, // рассвет, медленно и светло
+  email: { bpm: 70, high: 12, arp: [0, 1, 2, 1, 0, 1, 2, 1], len: 1.1, wave: 'triangle' }, // второе письмо
 };
 // аккорды в полутонах от тоники: I – V – vi – IV (а ночью vi – IV – I – V)
 const PROG = {
@@ -23,6 +39,9 @@ const PROG = {
   minor: [[-3, 0, 4], [-7, -3, 0], [0, 4, 7], [-5, -1, 2]],
 };
 const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
+
+// Имена тем, которых нет в ROOTS: сюда попадает опечатка вроде 'letter2', и её видно в проверках.
+export const unknownThemes = new Set();
 
 export class Sound {
   constructor() {
@@ -36,7 +55,7 @@ export class Sound {
     this.timer = null;
     this.combo = 0;
     this.comboT = 0;
-    // «живая» музыка: слои добавляются по ходу уровня (см. setMood)
+    // «живая» музыка: слои добавляются по ходу раунда (см. setMood)
     this.intensity = 0;
     this.danger = false;
     this.boost = false;
@@ -79,7 +98,7 @@ export class Sound {
       this.master.connect(this.limiter).connect(this.ctx.destination);
       this.sfx = this.ctx.createGain();
       this.sfx.connect(this.master);
-      // музыка идёт через фильтр: в начале уровня она «приглушена», к финишу раскрывается
+      // музыка идёт через фильтр: в начале раунда она «приглушена», к финишу раскрывается
       this.mus = this.ctx.createGain();
       this.mus.gain.value = 0.5;
       this.musFilter = this.ctx.createBiquadFilter();
@@ -282,6 +301,50 @@ export class Sound {
         this.tone(210, 0.09, { type: 'sawtooth', vol: 0.07, to: 150 });
         this.tone(250, 0.13, { type: 'sawtooth', vol: 0.08, to: 140, delay: 0.11 });
         break;
+      case 'buzz':
+        // робот-пылесос: низкое жужжание моторчика
+        this.tone(96, 0.5, { type: 'sawtooth', vol: 0.07, to: 118 });
+        this.tone(192, 0.5, { type: 'square', vol: 0.03, to: 236 });
+        break;
+      case 'pop2':
+        // мыльный пузырь лопнул
+        this.noise(0.09, { vol: 0.2, freq: 2600, q: 0.7 });
+        this.tone(1400, 0.07, { type: 'sine', vol: 0.06, to: 2400 });
+        break;
+      case 'coo':
+        // голубь: мягкое воркование перед взлётом
+        this.tone(380, 0.16, { type: 'sine', vol: 0.08, to: 300 });
+        this.tone(340, 0.2, { type: 'sine', vol: 0.07, to: 270, delay: 0.17 });
+        break;
+      case 'crumble':
+        // булочка раскрошилась
+        this.noise(0.13, { vol: 0.18, freq: 1100, q: 0.5, type: 'lowpass' });
+        this.tone(midi(72), 0.12, { type: 'triangle', vol: 0.07, to: midi(64) });
+        break;
+      case 'clank':
+        // оловянный солдатик: короткий металлический стук
+        this.tone(560, 0.06, { type: 'square', vol: 0.06, to: 380 });
+        this.noise(0.05, { vol: 0.12, freq: 3200, q: 1.2 });
+        break;
+      case 'fizz':
+        // уголёк: короткое шипение
+        this.noise(0.16, { vol: 0.14, freq: 2000, q: 0.4, to: 900 });
+        break;
+      case 'whistle':
+        // пар из пекарни
+        this.noise(0.3, { vol: 0.1, freq: 1500, q: 0.35, to: 2600 });
+        break;
+      case 'thunder':
+        // молния: резкий щелчок и низкий раскат
+        this.noise(0.09, { vol: 0.3, freq: 4200, q: 0.3 });
+        this.tone(70, 0.7, { type: 'sawtooth', vol: 0.1, to: 38, delay: 0.03 });
+        this.noise(0.6, { vol: 0.1, freq: 300, q: 0.4, type: 'lowpass', delay: 0.05 });
+        break;
+      case 'letter2':
+        // второе письмо: те же ноты, что у первого, но выше и светлее
+        [76, 80, 83, 88].forEach((n, i) => this.tone(midi(n), 1, { type: 'sine', vol: 0.08, delay: 0.2 + i * 0.15 }));
+        this.tone(midi(95), 1.2, { type: 'triangle', vol: 0.05, delay: 0.8 });
+        break;
       case 'shield':
         this.noise(0.18, { vol: 0.25, freq: 3200, q: 0.7 });
         this.tone(1200, 0.2, { type: 'sine', vol: 0.1, to: 500 });
@@ -298,6 +361,11 @@ export class Sound {
       case 'warn':
         this.tone(980, 0.09, { type: 'square', vol: 0.06 });
         this.tone(980, 0.09, { type: 'square', vol: 0.06, delay: 0.16 });
+        break;
+      case 'windwarn':
+        // ветер только собирается: короткий свист, чтобы успеть понять, откуда дунуть
+        this.noise(0.45, { vol: 0.12, freq: 900, q: 1.2, to: 1700 });
+        this.tone(1240, 0.16, { type: 'sine', vol: 0.05, to: 880 });
         break;
       case 'wind':
         this.noise(1.3, { vol: 0.16, freq: 700, q: 0.4 });
@@ -357,6 +425,9 @@ export class Sound {
   }
 
   setTheme(theme) {
+    // Незнакомая тема раньше молча играла «по умолчанию»: письмо № 2 так и осталось
+    // без своей музыки. Запоминаем такие имена — их ловит проверка в unit-test.mjs.
+    if (!(theme in ROOTS)) unknownThemes.add(theme);
     this.theme = theme;
   }
 
@@ -458,7 +529,7 @@ export class Sound {
       if (pos === 4 && bar % 2 === 1) this.tone(midi(root + 24 + chord[2]), 0.8, { type: 'sine', vol: 0.05, delay, out });
       if (pos === 6 && Math.floor(n / 32) % 2 === 1) this.tone(midi(root + 24 + chord[1]), 0.6, { type: 'sine', vol: 0.045, delay, out });
       if (!this.danger) {
-        // слой 4 — мягкие аккорды на слабую долю: появляются к середине уровня
+        // слой 4 — мягкие аккорды на слабую долю: появляются к середине раунда
         if (lvl > 0.3 && (pos === 2 || pos === 6)) {
           const v = 0.022 + (lvl - 0.3) * 0.03;
           this.tone(midi(root + chord[1]), 0.22, { type: 'triangle', vol: v, delay, out, attack: 0.006 });

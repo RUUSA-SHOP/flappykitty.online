@@ -57,7 +57,13 @@
 .screen--veil {
   background: rgba(58, 29, 46, 0.58);
 }
-/* Длинные списки (уровни, гардероб) начинаются сверху и прокручиваются вниз. Если их центрировать,
+/* Окно по центру держит margin-block: auto у самой панели, а экран выравнивает от верха. С выравниванием
+   по центру окно выше экрана (телефон боком) вылезало за верхний край, и прокруткой его было не достать. */
+.screen--veil,
+.screen--bottom {
+  justify-content: flex-start;
+}
+/* Длинные списки (раунды, гардероб) начинаются сверху и прокручиваются вниз. Если их центрировать,
    высокая панель вылезает за верхний край — шапку и кнопку «назад» не достать прокруткой. */
 .screen--list {
   justify-content: flex-start;
@@ -67,7 +73,6 @@
   margin-block: auto;
 }
 .screen--bottom {
-  justify-content: flex-end;
   padding-bottom: max(7cqh, 28px);
 }
 .screen--menu {
@@ -96,9 +101,11 @@
   border-radius: 28px;
   box-shadow: var(--pop-lg);
   animation: pop-in 0.32s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  flex: 0 0 auto;
 }
+/* прижато к низу, пока помещается; если нет — начинается сверху и прокручивается */
 .screen--bottom .panel {
-  margin-block: 0;
+  margin-block: auto 0;
 }
 .panel--wide {
   width: min(100%, 560px);
@@ -494,7 +501,91 @@
   }
 }
 
-/* ---------- уровни ---------- */
+/* ---------- уровни: два блока, в каждом десять раундов и письмо ---------- */
+
+.tiers {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 26px;
+  margin-top: 10px;
+}
+.tier {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+.tier + .tier {
+  padding-top: 22px;
+  border-top: 2px dashed rgba(58, 29, 46, 0.22);
+}
+.tier__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 12px;
+}
+.tier__head p,
+.tier__head h3 {
+  margin: 0;
+}
+.tier__no {
+  font-size: 0.8125rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rose-deep);
+}
+.tier__name {
+  grid-column: 1;
+  font-size: 1.3rem;
+  font-weight: 900;
+  line-height: 1.15;
+}
+.tier__stars {
+  display: inline-flex;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-items: center;
+  gap: 4px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.tier__stars .icon {
+  color: #f0a92b;
+}
+.tier__about {
+  grid-column: 1 / -1;
+  font-size: 0.9rem;
+  color: var(--plum-soft);
+}
+.tier__letter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--plum-soft);
+  border: 2px dashed rgba(58, 29, 46, 0.3);
+  border-radius: 14px;
+}
+.tier__letter .icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+.tier__letter.is-got {
+  color: var(--rose-deep);
+  background: var(--blush);
+  border: 2px solid var(--rose);
+}
+.tier.is-locked .tier__name,
+.tier.is-locked .tier__stars {
+  opacity: 0.6;
+}
+
+/* ---------- карточки раундов ---------- */
 
 .levels {
   display: grid;
@@ -573,6 +664,39 @@
 .level[data-theme='love'] .level__art {
   color: #fff;
   background: linear-gradient(160deg, #7a5aa8, #ee86a2 60%, #ffc2a0);
+}
+.level[data-theme='attic'] .level__art {
+  background: linear-gradient(160deg, #f1dcb8, #c79f6e 65%, #8a6a4a);
+}
+.level[data-theme='vacuum'] .level__art {
+  background: linear-gradient(160deg, #f6f9fc, #cfdbe8 70%, #9fb2c6);
+}
+.level[data-theme='yarn'] .level__art {
+  background: linear-gradient(160deg, #fff1e2, #f8cdb0 55%, #b9e0c8);
+}
+.level[data-theme='bath'] .level__art {
+  background: linear-gradient(160deg, #f1fbfe, #bfe6f0 60%, #f6b8c8);
+}
+.level[data-theme='street'] .level__art {
+  background: linear-gradient(160deg, #bfe4fb, #e3f3d2 60%, #9ccf8a);
+}
+.level[data-theme='bakery'] .level__art {
+  background: linear-gradient(160deg, #fff3dc, #f6cf94 60%, #e0a860);
+}
+.level[data-theme='toybox'] .level__art {
+  background: linear-gradient(160deg, #f4eeff, #cdbbf0 55%, #f6b8c8);
+}
+.level[data-theme='fireplace'] .level__art {
+  color: #ffe3c8;
+  background: linear-gradient(160deg, #3a1a12, #a8431f 60%, #ffb347);
+}
+.level[data-theme='storm'] .level__art {
+  color: #e8eef8;
+  background: linear-gradient(160deg, #1f2a3f, #55627c 65%, #aeb9d0);
+}
+.level[data-theme='dawn'] .level__art {
+  color: #fff;
+  background: linear-gradient(160deg, #6b4f9a, #f08fb0 55%, #ffd9a8);
 }
 .level__body {
   display: grid;
@@ -1289,6 +1413,33 @@
   border-radius: 14px;
 }
 
+/* Длинные подписи. «Уровень 2 · раунд 10» на главной кнопке и «Дальше · уровень 2» под записками
+   должны оставаться в одну строку: вторая строка делает кнопку выше, и она закрывает Мию в меню. */
+.menu__buttons > .btn--big.btn--long {
+  padding-inline: 1.1em;
+  font-size: 1.2rem;
+  white-space: nowrap;
+}
+#btnWinNext,
+#btnNoteNext {
+  white-space: nowrap;
+}
+.eyebrow .nowrap {
+  white-space: nowrap;
+}
+@container (max-width: 360px) {
+  .menu__buttons > .btn--big.btn--long {
+    font-size: 1.05rem;
+  }
+  .panel__stack .btn,
+  .panel__actions .btn {
+    padding-inline: 1em;
+  }
+  .panel .eyebrow {
+    letter-spacing: 0.08em;
+  }
+}
+
 /* низкий экран (телефон боком) — компактнее */
 @container (max-height: 520px) {
   .screen {
@@ -1306,14 +1457,25 @@
     margin-top: -46px;
     pointer-events: none;
   }
+  /* minmax(0, …): иначе длинная подпись главной кнопки раздвигает колонку и «Гардероб» уезжает за край */
   .menu__buttons {
     width: min(100%, 560px);
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
     margin-inline: auto;
     gap: 10px;
   }
   .menu__buttons > .btn--big {
     min-height: 52px;
+  }
+  .menu__buttons > .btn--big.btn--long {
+    padding-inline: 0.7em;
+    font-size: 1.05rem;
+  }
+  .menu__row {
+    gap: 8px;
+  }
+  .menu__row .btn {
+    padding-inline: 0.4em;
   }
   .menu__best {
     display: none;
@@ -1322,6 +1484,19 @@
     padding: 14px 18px 16px;
     gap: 8px;
   }
+  /* вступление к раунду: шире и ниже, чтобы целиком помещалось над землёй вместе с кнопкой «Полетели!» */
+  .screen--bottom {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .screen--bottom .panel {
+    width: min(100%, 520px);
+    gap: 6px;
+    padding: 10px 16px 12px;
+  }
+  .screen--bottom .panel__title {
+    font-size: 1.5rem;
+  }
   .stars .icon {
     width: 40px;
     height: 40px;
@@ -1329,5 +1504,31 @@
   .stars .icon:nth-child(2) {
     width: 48px;
     height: 48px;
+  }
+}
+
+/* низкий и при этом узкий экран (маленький телефон боком, кадр около 480 px): три кнопки в ряд помещаются
+   только с подписями помельче */
+@container (max-height: 520px) and (max-width: 520px) {
+  .menu__buttons {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+  }
+  .menu__buttons > .btn--big.btn--long {
+    padding-inline: 0.5em;
+    font-size: 0.95rem;
+  }
+  .menu__buttons > .btn--small {
+    padding-inline: 0.5em;
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
+  .menu__row {
+    gap: 6px;
+  }
+  .menu__row .btn {
+    gap: 0.3em;
+    padding-inline: 0.3em;
+    font-size: 0.85rem;
   }
 }

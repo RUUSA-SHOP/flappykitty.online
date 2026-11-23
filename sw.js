@@ -8,7 +8,7 @@
    сайт работает и в подпапке GitHub Pages, и в корне домена.
    ⚠ Поменял список CORE — увеличь номер в VERSION. */
 
-const VERSION = 'fk-3';
+const VERSION = 'fk-7'; // правки владельца: записки № 10 и № 16, подписи кнопок в одну строку, новый комок пыли
 const CACHE = `flappykitty-${VERSION}`;
 
 // Всё, без чего игра не запустится, и страницы сайта, на которые из неё ведут ссылки.
@@ -59,6 +59,17 @@ const CORE = [
   'assets/img/gallery/council-thumb.webp',
   'assets/img/gallery/art-kiss-or-bite-thumb.webp',
   'assets/img/gallery/roses-thumb.webp',
+  // фото к запискам второго уровня
+  'assets/img/gallery/window-thumb.webp',
+  'assets/img/gallery/floor-thumb.webp',
+  'assets/img/gallery/funko-thumb.webp',
+  'assets/img/gallery/cooktop-up-thumb.webp',
+  'assets/img/gallery/bag-thumb.webp',
+  'assets/img/gallery/loaf-thumb.webp',
+  'assets/img/gallery/paw-selfie-thumb.webp',
+  'assets/img/gallery/bed-thumb.webp',
+  'assets/img/gallery/wink-thumb.webp',
+  'assets/img/gallery/selfie-thumb.webp',
 ];
 
 self.addEventListener('install', (event) => {

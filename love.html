@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Записки от Мии · Flappy Kitty</title>
-  <meta name="description" content="Записки, которые Мия оставляет после каждого уровня, и письмо в самом конце.">
+  <meta name="description" content="Записки, которые Мия оставляет после каждого раунда, и письмо в самом конце.">
   <!-- Сайт личный: просим поисковики его не индексировать. Убери строку ниже, если хочешь, чтобы сайт находился в поиске. -->
   <meta name="robots" content="noindex">
   <meta name="theme-color" content="#fff7f0">
@@ -14,7 +14,7 @@
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ru_RU">
   <meta property="og:title" content="Записки от Мии · Flappy Kitty">
-  <meta property="og:description" content="Записки, которые Мия оставляет после каждого уровня, и письмо в самом конце.">
+  <meta property="og:description" content="Записки, которые Мия оставляет после каждого раунда, и письмо в самом конце.">
   <meta property="og:url" content="https://miagpt.github.io/flappykitty.online/love.html">
   <meta property="og:image" content="https://miagpt.github.io/flappykitty.online/assets/img/og.jpg">
   <meta name="twitter:card" content="summary_large_image">
@@ -63,19 +63,14 @@
     <div class="wrap">
       <p class="eyebrow">Записки</p>
       <h1>Записки от Мии</h1>
-      <p class="lead">Каждая открывается после своего уровня. Последнее письмо — после десятого, и оно уже не от Мии.</p>
-      <p class="progress-pill"><svg class="icon" aria-hidden="true"><use href="#i-mail"/></svg><span id="noteCount">Открыто 0 из 10</span></p>
+      <p class="lead">Два уровня, в каждом десять раундов. После каждого раунда Мия оставляет записку — их двадцать. А в конце уровня приходит письмо: писем два, и они уже не от Мии.</p>
+      <p class="progress-pill"><svg class="icon" aria-hidden="true"><use href="#i-mail"/></svg><span id="noteCount">Открыто 0 из 22</span></p>
     </div>
   </header>
 
-  <section class="wrap" aria-label="Записки">
-    <ul class="notes" id="notes"></ul>
-    <noscript><p class="card" style="padding:20px">Записки хранятся в браузере и показываются с помощью JavaScript. Включи его, чтобы их прочитать.</p></noscript>
-  </section>
-
-  <section class="section" aria-label="Письмо">
-    <div class="wrap" id="final"></div>
-  </section>
+  <!-- Уровень → десять записок → письмо. Блоки собирает assets/js/love.js. -->
+  <div class="wrap" id="notes"></div>
+  <noscript><div class="wrap"><p class="card" style="padding:20px">Записки хранятся в браузере и показываются с помощью JavaScript. Включи его, чтобы их прочитать.</p></div></noscript>
 </main>
 
 <footer class="site-foot">

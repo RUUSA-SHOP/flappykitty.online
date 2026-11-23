@@ -211,43 +211,115 @@ if (exists('sw.js')) {
   }
 }
 
-/* ---------- число уровней: тексты страниц сверяются с игрой ---------- */
+/* ---------- инструменты проверок: файл должен хотя бы запускаться ---------- */
 
 {
-  // Уровни добавляются в levels.js, а «шесть уровней» остаётся в десятке текстов. Ловим это здесь.
-  const { LEVELS } = await import('../assets/js/game/levels.js');
-  const { CONFIG } = await import('../assets/js/config.js');
-  const N = LEVELS.length;
-  const WORDS = { один: 1, одного: 1, два: 2, двух: 2, три: 3, трёх: 3, четыре: 4, четырёх: 4, пять: 5, пяти: 5, пятью: 5, шесть: 6, шести: 6, шестью: 6, семь: 7, семи: 7, семью: 7, восемь: 8, восьми: 8, восемью: 8, девять: 9, девяти: 9, девятью: 9, десять: 10, десяти: 10, десятью: 10, одиннадцать: 11, двенадцать: 12 };
-  const ORD = { первого: 1, второго: 2, третьего: 3, четвёртого: 4, пятого: 5, шестого: 6, седьмого: 7, восьмого: 8, девятого: 9, десятого: 10, одиннадцатого: 11, двенадцатого: 12 };
-  const num = (w) => (/^\d+$/.test(w) ? +w : WORDS[w.toLowerCase()]);
-  const texts = [...pages.map(rel), 'README.md', 'AGENTS.md', 'docs/PLAN.md'].filter(exists).map((f) => [f, read(f)]);
-  texts.push(['assets/js/config.js → finalLetter', CONFIG.finalLetter.text]);
-  for (const [file, text] of texts) {
-    // «шесть уровней», «6 сюжетных уровней», «с десятью уровнями», «все шесть уровней»
-    for (const m of text.matchAll(/(?<![\wа-яё.,-])(\d+|[а-яё]+)\s+(?:сюжетны[а-яё]+\s+)?уровн(?:ей|ями|ях|я)(?![а-яё])/gi)) {
-      const n = num(m[1]);
-      if (n != null && n !== N) err(file, `«${m[0]}» — а уровней в игре ${N}`);
+  // e2e.mjs не входит в `npm test` (он идёт отдельной задачей CI) и грузится только в браузере.
+  // Однажды из-за этого целый файл падал сразу на первой строке: обращение к CONFIG без импорта.
+  // `node --check` такое не видит — он проверяет только синтаксис, а не имена.
+  for (const file of ['tools/e2e.mjs', 'tools/bot-test.mjs']) {
+    if (!exists(file)) continue;
+    const src = read(file);
+    // каждое имя, которое файл берёт из модулей, должно быть импортировано
+    const imported = new Set();
+    for (const m of src.matchAll(/import\s*\{([^}]+)\}\s*from/g)) {
+      m[1].split(',').forEach((x) => imported.add(x.trim().split(/\s+as\s+/).pop()));
     }
-    // «письмо после шестого (уровня)», «после шестого — письмо»
-    for (const m of text.matchAll(/после\s+([а-яё]+ого)(?:\s+уровня)?[^.!?\n]{0,24}письмо|письмо[^.!?\n]{0,24}после\s+([а-яё]+ого)(?![а-яё])/gi)) {
-      const n = ORD[(m[1] || m[2]).toLowerCase()];
-      if (n != null && n !== N) err(file, `«${m[0]}» — письмо открывается после уровня № ${N}`);
+    for (const m of src.matchAll(/import\s+([A-Za-z_$][\w$]*)\s+from/g)) imported.add(m[1]);
+    // Имена, которые приходят из config.js и levels.js. Внутри page.evaluate() код исполняется
+    // в браузере и может импортировать что угодно сам — такие куски из проверки выкидываем.
+    const top = src.replace(/page\.evaluate\(([\s\S]*?)\n\s*\}\);|page\.evaluate\(\(\) =>[^;]*\)/g, '');
+    for (const name of ['CONFIG', 'ROUNDS', 'SKINS', 'POWERUPS', 'WORLD']) {
+      const used = new RegExp(`(?<![.\\w$])${name}\\b`).test(top);
+      if (used && !imported.has(name)) err(file, `${name} используется, но не импортирован — файл упадёт при запуске`);
     }
   }
-  // карточки уровней на главной: столько же, сколько уровней, названия по порядку
+}
+
+/* ---------- уровни, раунды, записки и письма: тексты страниц сверяются с игрой ---------- */
+
+{
+  // Игра — это уровни (2) по десять раундов (всего 20); после каждого раунда — записка (20), в конце уровня — письмо (2).
+  // Числа живут в levels.js и config.js, а «шесть уровней» остаётся в десятке текстов. Ловим это здесь.
+  const { LEVELS, ROUNDS, ROUNDS_PER_LEVEL } = await import('../assets/js/game/levels.js');
+  const { CONFIG } = await import('../assets/js/config.js');
+  const N = ROUNDS.length;
+  const WORDS = {
+    один: 1, одного: 1, одним: 1, два: 2, две: 2, двух: 2, двумя: 2, три: 3, трёх: 3, четыре: 4, четырёх: 4, пять: 5, пяти: 5, пятью: 5,
+    шесть: 6, шести: 6, шестью: 6, семь: 7, семи: 7, семью: 7, восемь: 8, восьми: 8, восемью: 8, девять: 9, девяти: 9, девятью: 9,
+    десять: 10, десяти: 10, десятью: 10, одиннадцать: 11, двенадцать: 12, восемнадцать: 18, восемнадцати: 18,
+    двадцать: 20, двадцати: 20, двадцатью: 20,
+  };
+  const ORD = { первого: 1, второго: 2, третьего: 3, четвёртого: 4, пятого: 5, шестого: 6, седьмого: 7, восьмого: 8, девятого: 9, десятого: 10, одиннадцатого: 11, двенадцатого: 12, двадцатого: 20 };
+  const num = (w) => (/^\d+$/.test(w) ? +w : WORDS[w.toLowerCase()]);
+  const texts = [...pages.map(rel), 'README.md', 'AGENTS.md', 'docs/PLAN.md', 'docs/PROJECT.md'].filter(exists).map((f) => [f, read(f)]);
+  // Что считаем: слово после числа и какие числа для него верны.
+  // История проекта («было шесть уровней», «версия с десятью уровнями») в сверку не попадает: такие строки помечены словами «было», «раньше», «прежн», «стар», «v1».
+  const COUNTS = [
+    // «два уровня», «двух уровней», «с двумя уровнями»
+    [/(?<![\wа-яё.,-])(\d+|[а-яё]+)\s+(?:сюжетны[а-яё]+\s+)?уровн(?:ей|ями|ях|я)(?![а-яё])/gi, [LEVELS.length, 1], `уровней в игре ${LEVELS.length}`],
+    // «десять раундов» (в уровне) или «двадцать раундов» (всего)
+    [/(?<![\wа-яё.,-])(\d+|[а-яё]+)\s+(?:сюжетны[а-яё]+\s+)?раунд(?:ов|ами|ах)(?![а-яё])/gi, [ROUNDS_PER_LEVEL, N], `раундов в уровне ${ROUNDS_PER_LEVEL}, всего ${N}`],
+    // «двадцать записок»; «десять записок» — это записки одного уровня
+    [/(?<![\wа-яё.,-])(\d+|[а-яё]+)\s+запис(?:ок|ками|ках)(?![а-яё])/gi, [CONFIG.notes.length, ROUNDS_PER_LEVEL], `записок ${CONFIG.notes.length}`],
+    // «два письма», «двух писем»
+    [/(?<![\wа-яё.,-])(\d+|[а-яё]+)\s+пис(?:ьма|ем|ьмами|ьмах)(?![а-яё])/gi, [CONFIG.letters.length], `писем ${CONFIG.letters.length}`],
+  ];
+  const HISTORY = /был[оиа]?\b|раньше|прежн|стар[аоы]|перв(?:ой|ая) верси|v1\b|→/i;
+  for (const [file, text] of texts) {
+    for (const raw of text.split('\n')) {
+      if (HISTORY.test(raw)) continue;
+      const line = raw.replace(/«[^»]*»/g, '«…»'); // цитаты (например, заголовок личной записки) не сверяем
+      for (const [re, ok, hint] of COUNTS) {
+        for (const m of line.matchAll(re)) {
+          const n = num(m[1]);
+          if (n != null && !ok.includes(n)) err(file, `«${m[0]}» — а ${hint}`);
+        }
+      }
+      // «письмо после десятого (раунда)», «после десятого — письмо»: письмо приходит только после последнего раунда уровня
+      for (const m of line.matchAll(/после\s+([а-яё]+ого)(?:\s+раунда)?[^.!?\n]{0,24}письмо|письмо[^.!?\n]{0,24}после\s+([а-яё]+ого)(?![а-яё])/gi)) {
+        const n = ORD[(m[1] || m[2]).toLowerCase()];
+        if (n != null && n % ROUNDS_PER_LEVEL !== 0) err(file, `«${m[0]}» — письмо приходит после десятого раунда уровня`);
+      }
+    }
+  }
+  if (CONFIG.notes.length !== N) err('assets/js/config.js', `записок ${CONFIG.notes.length}, а раундов ${N}: записка нужна после каждого раунда`);
+  if (CONFIG.letters.length !== LEVELS.length) err('assets/js/config.js', `писем ${CONFIG.letters.length}, а уровней ${LEVELS.length}: письмо нужно в конце каждого уровня`);
+  // карточки раундов на главной: столько же, сколько раундов, названия по порядку
   if (exists('index.html')) {
     const cards = [...read('index.html').matchAll(/class="lvl__n"[^>]*>(\d+)<[\s\S]*?<h3>([^<]+)<\/h3>/g)].map((m) => [+m[1], m[2].trim()]);
-    if (cards.length !== N) err('index.html', `карточек уровней ${cards.length}, а уровней в игре ${N}`);
-    const names = LEVELS.map((l) => (l.id === N ? `Дорога к ${CONFIG.her.dative}` : l.name));
+    if (cards.length !== N) err('index.html', `карточек раундов ${cards.length}, а раундов в игре ${N}`);
+    // финалы называются по имени Насти: раунд 10 — «Дорога к …», 20 — «Дорога к … · рассвет»
+    const names = ROUNDS.map((l) => {
+      if (l.theme === 'love') return `Дорога к ${CONFIG.her.dative}`;
+      if (l.theme === 'dawn') return `Дорога к ${CONFIG.her.dative} · рассвет`;
+      return l.name;
+    });
     cards.forEach(([n, name], i) => {
-      if (n !== i + 1 || name !== names[i]) err('index.html', `карточка № ${i + 1}: «${n}. ${name}», а в игре «${i + 1}. ${names[i]}»`);
+      // номер на карточке — номер раунда внутри уровня (1–10)
+      if (n !== ROUNDS[i].no || name !== names[i]) err('index.html', `карточка № ${i + 1}: «${n}. ${name}», а в игре «${ROUNDS[i].no}. ${names[i]}»`);
+    });
+  }
+  // на главной раунды разложены по уровням: в каждом блоке ровно десять карточек с кадром, заголовок — имя уровня
+  if (exists('index.html')) {
+    const html = read('index.html');
+    const blocks = html.split('<div class="lvl-level"').slice(1);
+    if (blocks.length !== LEVELS.length) err('index.html', `блоков уровней ${blocks.length}, а уровней в игре ${LEVELS.length}`);
+    blocks.forEach((b, i) => {
+      const cards = (b.match(/class="card lvl"/g) || []).length;
+      if (cards !== ROUNDS_PER_LEVEL) err('index.html', `уровень ${i + 1}: карточек ${cards}, а раундов в уровне ${ROUNDS_PER_LEVEL}`);
+      if (LEVELS[i] && !b.includes(`>${LEVELS[i].name}<`)) err('index.html', `уровень ${i + 1}: в заголовке нет названия «${LEVELS[i].name}»`);
+    });
+    ROUNDS.forEach((r) => {
+      if (!html.includes(`assets/img/shots/${r.id}-${r.theme}.webp`)) err('index.html', `у раунда ${r.id} («${r.name}») нет кадра assets/img/shots/${r.id}-${r.theme}.webp`);
     });
   }
   // счётчик записок в разметке — до того, как его перерисует скрипт
   if (exists('love.html')) {
+    // Карточек на странице записок: записка после каждого раунда и письмо в конце каждого уровня.
+    const TOTAL = CONFIG.notes.length + (CONFIG.letters || []).length;
     const m = read('love.html').match(/id="noteCount">Открыто 0 из (\d+)</);
-    if (!m || +m[1] !== N) err('love.html', `счётчик записок «Открыто 0 из ${m ? m[1] : '?'}», должно быть ${N}`);
+    if (!m || +m[1] !== TOTAL) err('love.html', `счётчик записок «Открыто 0 из ${m ? m[1] : '?'}», должно быть ${TOTAL}`);
   }
   // счётчик звёзд в разметке — до того, как его перерисует скрипт
   if (exists('play.html')) {

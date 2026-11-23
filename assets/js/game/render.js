@@ -5,6 +5,7 @@ import { THEMES, hash, heartPath, rr } from './themes.js';
 
 const G = WORLD.GROUND;
 const TAU = Math.PI * 2;
+const lerp = (a, b, f) => a + (b - a) * f;
 const FONT = 'Nunito, system-ui, sans-serif';
 const BALLOON_COLORS = ['#F58CA5', '#F4C97B', '#9CC7E8', '#C9A7E8'];
 
@@ -169,8 +170,8 @@ export class Renderer {
       case 'win': {
         this.flash = 0.5;
         this.flashColor = '255,255,255';
-        // большое сердце на финише «лопается» кольцами и конфетти; в последнем уровне — щедрее
-        const big = sim.level && sim.level.theme === 'love';
+        // большое сердце на финише «лопается» кольцами и конфетти; в последнем раунде — щедрее
+        const big = sim.round && sim.round.finale; // в конце каждого раунда — большое сердце с именем
         const fx = sim.finishX != null ? sim.finishX - sim.dist : mx;
         this.ring(fx, 320, '#FF5C7A');
         this.ring(fx, 320, '#FFFFFF');
@@ -306,6 +307,18 @@ export class Renderer {
       else if (h.type === 'yarn') this.yarn(x, h.y, h.hue, t);
       else if (h.type === 'bat') this.bat(x, h.y, t);
       else if (h.type === 'frog') this.frog(x, h, t);
+      else if (h.type === 'dust') this.dustBall(x, h.y, t);
+      else if (h.type === 'roomba') {
+        if (h.pull > 0) this.suction(x, h.y, sim.miaX, sim.mia.y, h.pull, t);
+        this.roomba(x, h.y, t);
+      }
+      else if (h.type === 'bubble') this.bubble(x, h.y, t);
+      else if (h.type === 'bird') this.bird(x, h, t);
+      else if (h.type === 'bun') this.bun(x, h.y, t);
+      else if (h.type === 'soldier') this.soldier(x, h.y, t);
+      else if (h.type === 'ember') this.ember(x, h, t);
+      else if (h.type === 'steam') this.steam(x, h, t);
+      else if (h.type === 'lightning') this.bolt(x, h, t);
     }
 
     // след
@@ -741,6 +754,452 @@ export class Renderer {
     ctx.lineTo(7, -17);
     ctx.lineTo(7, -9);
     ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /* ---------- опасности второго уровня ---------- */
+
+  dustBall(x, y, t) {
+    // Комок пыли: лохматый серо-сиреневый шар с тёмным контуром и глазками.
+    // Контур и холодный цвет нужны, чтобы он читался на тёплом коричневом фоне чердака.
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.sin(t * 1.4) * 0.18);
+    // лохматый край — из маленьких кругов по окружности, одним контуром
+    ctx.beginPath();
+    for (let k = 0; k < 9; k++) {
+      const a = (k / 9) * TAU;
+      const px = Math.cos(a) * 12;
+      const py = Math.sin(a) * 12;
+      ctx.moveTo(px + 6.5, py);
+      ctx.arc(px, py, 6.5, 0, TAU);
+    }
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#3a1d2e';
+    ctx.stroke();
+    ctx.fillStyle = '#9a93a6';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, 0, 13, 0, TAU);
+    ctx.fill();
+    // светлый бок
+    ctx.fillStyle = 'rgba(226,220,236,.85)';
+    ctx.beginPath();
+    ctx.arc(-4, -5, 7, 0, TAU);
+    ctx.fill();
+    // глазки смотрят навстречу Мии
+    ctx.fillStyle = '#3a1d2e';
+    ctx.beginPath();
+    ctx.arc(-6, 1, 2.2, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(1, 1, 2.2, 0, TAU);
+    ctx.fill();
+    // пылинки вокруг
+    for (let k = 0; k < 4; k++) {
+      const a = t * 1.6 + k * 1.57;
+      ctx.fillStyle = 'rgba(58,29,46,.45)';
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * 23, Math.sin(a) * 23, 1.8, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  roomba(x, y, t) {
+    // робот-пылесос: плоский диск с лампочкой и щётками
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(60,70,85,.25)';
+    ctx.beginPath();
+    ctx.ellipse(0, 12, 30, 6, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#4A566A';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 28, 15, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#5E6C83';
+    ctx.beginPath();
+    ctx.ellipse(0, -3, 26, 12, 0, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#8FA2B2';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, -3, 26, 12, 0, 0, TAU);
+    ctx.stroke();
+    // лампочка
+    const on = Math.sin(t * 6) > 0;
+    ctx.fillStyle = on ? '#7FE0A8' : '#3E7A58';
+    ctx.beginPath();
+    ctx.arc(-12, -4, 3, 0, TAU);
+    ctx.fill();
+    // щётки
+    ctx.strokeStyle = '#C9D3DE';
+    ctx.lineWidth = 2;
+    for (const s of [-1, 1]) {
+      const a = t * 14 * s;
+      ctx.beginPath();
+      ctx.moveTo(s * 18, 2);
+      ctx.lineTo(s * 18 + Math.cos(a) * 9, 2 + Math.sin(a) * 5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  bubble(x, y, t) {
+    // мыльный пузырь: прозрачный шар с бликом
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    const r = 15 + Math.sin(t * 4 + y) * 1.5;
+    const g = ctx.createRadialGradient(-r * 0.35, -r * 0.4, 1, 0, 0, r);
+    g.addColorStop(0, 'rgba(255,255,255,.9)');
+    g.addColorStop(0.45, 'rgba(210,240,255,.35)');
+    g.addColorStop(1, 'rgba(160,215,245,.55)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.85)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, TAU);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.95)';
+    ctx.beginPath();
+    ctx.arc(-r * 0.35, -r * 0.4, r * 0.22, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  suction(x, y, mx, my, k, t) {
+    // робот тянет Мию к себе: струйки воздуха сходятся от неё к роботу
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 5; i++) {
+      const f = (t * 1.6 + i / 5) % 1; // 0 — у Мии, 1 — у робота
+      const sx = lerp(mx, x, f) + Math.sin(i * 2.3) * 22 * (1 - f);
+      const sy = lerp(my + 26, y - 14, f);
+      const ex = lerp(mx, x, Math.min(1, f + 0.09)) + Math.sin(i * 2.3) * 22 * (1 - f - 0.09);
+      const ey = lerp(my + 26, y - 14, Math.min(1, f + 0.09));
+      ctx.strokeStyle = `rgba(120,150,180,${(0.2 + 0.5 * k) * Math.sin(f * Math.PI)})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  bird(x, h, t) {
+    // голубь: сидит, а когда взлетает — машет крыльями
+    const ctx = this.ctx;
+    const up = h.state === 'rise';
+    const flap = up ? Math.sin(t * 22) : 0;
+    ctx.save();
+    ctx.translate(x, h.y);
+    ctx.scale(1.35, 1.35);
+    if (up) ctx.rotate(-0.25);
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#4B5870';
+    ctx.lineWidth = 1.6;
+    // хвост
+    ctx.fillStyle = '#7A8AA0';
+    ctx.beginPath();
+    ctx.moveTo(8, -1);
+    ctx.lineTo(21, 3);
+    ctx.lineTo(9, 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // тело
+    ctx.fillStyle = '#9AA9BD';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 12, 9, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    // голова
+    ctx.fillStyle = '#B4C1D2';
+    ctx.beginPath();
+    ctx.arc(-9, -7, 6.5, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    // клюв
+    ctx.fillStyle = '#F0B860';
+    ctx.beginPath();
+    ctx.moveTo(-15, -8);
+    ctx.lineTo(-21, -5.5);
+    ctx.lineTo(-15, -3.5);
+    ctx.closePath();
+    ctx.fill();
+    // глаз
+    ctx.fillStyle = '#2B3446';
+    ctx.beginPath();
+    ctx.arc(-10.5, -8, 1.5, 0, TAU);
+    ctx.fill();
+    // крыло
+    ctx.fillStyle = '#7A8AA0';
+    ctx.beginPath();
+    ctx.moveTo(-3, -2);
+    ctx.quadraticCurveTo(8, -4 - flap * 16, 15, 1 - flap * 20);
+    ctx.quadraticCurveTo(7, 4, -2, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  bun(x, y, t) {
+    // летящая булочка: кувыркается
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.sin(t * 3 + x * 0.01) * 0.5);
+    ctx.fillStyle = '#D9984F';
+    ctx.strokeStyle = '#9A6430';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 17, 13, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#F0C98A';
+    ctx.beginPath();
+    ctx.ellipse(-2, -4, 12, 7, 0, 0, TAU);
+    ctx.fill();
+    // кунжут
+    ctx.fillStyle = '#FFF4DA';
+    for (let k = 0; k < 4; k++) {
+      ctx.beginPath();
+      ctx.ellipse(-8 + k * 5, -5 + (k % 2) * 3, 1.8, 1.1, 0.5, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  soldier(x, y, t) {
+    // оловянный солдатик: мундир, кивер, ружьё. Летит по стойке смирно.
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y + 4);
+    ctx.scale(1.55, 1.55);
+    ctx.rotate(-0.12);
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#2B3446';
+    ctx.lineWidth = 1.4;
+    // ноги
+    ctx.fillStyle = '#2B3446';
+    ctx.fillRect(-5, 5, 4, 8);
+    ctx.fillRect(1, 5, 4, 8);
+    // мундир
+    ctx.fillStyle = '#C8414F';
+    ctx.beginPath();
+    ctx.rect(-6, -6, 12, 12);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = '#F4C97B';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-5, -5);
+    ctx.lineTo(5, 5);
+    ctx.stroke();
+    // голова
+    ctx.strokeStyle = '#2B3446';
+    ctx.lineWidth = 1.4;
+    ctx.fillStyle = '#F0C9A8';
+    ctx.beginPath();
+    ctx.arc(0, -10, 5.5, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    // кивер
+    ctx.fillStyle = '#2B3446';
+    ctx.fillRect(-6.5, -21, 13, 9);
+    ctx.fillStyle = '#F4C97B';
+    ctx.fillRect(-6.5, -14.5, 13, 2);
+    ctx.fillStyle = '#E8526B';
+    ctx.beginPath();
+    ctx.arc(0, -22.5, 2.6, 0, TAU);
+    ctx.fill();
+    // ружьё со штыком — смотрит вперёд, туда, откуда летит Мия
+    ctx.strokeStyle = '#6B563F';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(-4, 2);
+    ctx.lineTo(-13, -13);
+    ctx.stroke();
+    ctx.strokeStyle = '#C9D3DE';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(-13, -13);
+    ctx.lineTo(-16, -18);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ember(x, h, t) {
+    // уголёк: раскалённый комок с огненным хвостом. Крупнее и ярче искр фона — его нельзя с ними спутать.
+    const ctx = this.ctx;
+    const y = h.y;
+    const up = h.state === 'rise';
+    ctx.save();
+    ctx.translate(x, y);
+    const a = 0.75 + 0.25 * Math.sin(t * 9 + h.phase);
+    const g = ctx.createRadialGradient(0, 0, 2, 0, 0, 30);
+    g.addColorStop(0, `rgba(255,190,90,${0.55 * a})`);
+    g.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, 30, 0, TAU);
+    ctx.fill();
+    if (up) {
+      // хвост: уголёк летит вверх, пламя тянется вниз
+      ctx.fillStyle = 'rgba(255,150,60,.75)';
+      ctx.beginPath();
+      ctx.moveTo(-9, 2);
+      ctx.quadraticCurveTo(Math.sin(t * 14) * 4, 34 + Math.sin(t * 11) * 5, 9, 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = '#FF7A3C';
+    ctx.strokeStyle = '#B23A1E';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 11, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#FFD27A';
+    ctx.beginPath();
+    ctx.arc(-1.5, -2, 6.5, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#FFF6DC';
+    ctx.beginPath();
+    ctx.arc(-2.5, -3, 3, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  steam(x, h, t) {
+    // струя пара от пола до потолка: клубы поднимаются вверх
+    const ctx = this.ctx;
+    ctx.save();
+    // кастрюля на полу
+    ctx.fillStyle = '#C9D3DE';
+    ctx.strokeStyle = '#8FA2B2';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    rr(ctx, x - 20, G - 22, 40, 22, 5);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#8FA2B2';
+    ctx.fillRect(x - 27, G - 18, 7, 4);
+    ctx.fillRect(x + 20, G - 18, 7, 4);
+    const strong = h.on ? 1 : 0.7;
+    for (let k = 0; k < 9; k++) {
+      const f = (t * 0.55 + k / 9 + h.phase) % 1; // 0 — у кастрюли, 1 — наверху
+      const py = G - 26 - f * (G - 10);
+      const px = x + Math.sin(f * 9 + k * 1.7) * (6 + f * 12);
+      const rad = 11 + f * 15;
+      ctx.fillStyle = `rgba(255,255,255,${(0.5 - f * 0.34) * strong})`;
+      ctx.beginPath();
+      ctx.arc(px, py, rad, 0, TAU);
+      ctx.fill();
+    }
+    // стрелки вверх: пар подбрасывает
+    ctx.strokeStyle = `rgba(255,255,255,${0.75 * strong})`;
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let k = 0; k < 2; k++) {
+      const f = (t * 0.9 + k * 0.5) % 1;
+      const py = G - 90 - f * 260;
+      ctx.globalAlpha = Math.sin(f * Math.PI);
+      ctx.beginPath();
+      ctx.moveTo(x - 9, py + 9);
+      ctx.lineTo(x, py);
+      ctx.lineTo(x + 9, py + 9);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  bolt(x, h, t) {
+    // Молния. Сначала в небе светится точка и от верха экрана к ней тянется пунктир — туда ударит разряд.
+    // Потом бьёт сам разряд: от верха до точки. Всё, что ниже точки, в безопасности.
+    const ctx = this.ctx;
+    const y = h.y;
+    ctx.save();
+    if (h.state === 'idle') {
+      ctx.restore();
+      return;
+    }
+    if (h.state === 'warn') {
+      const k = 1 - h.timer / 0.8; // 0 → 1 к моменту удара
+      const blink = 0.55 + 0.45 * Math.sin(t * (14 + k * 22));
+      // опасная зона: полоса от верха до точки
+      const zone = ctx.createLinearGradient(0, 0, 0, y);
+      zone.addColorStop(0, `rgba(255,236,150,${0.05 + 0.1 * k})`);
+      zone.addColorStop(1, `rgba(255,236,150,${0.16 + 0.2 * k})`);
+      ctx.fillStyle = zone;
+      ctx.fillRect(x - 17, 0, 34, y);
+      ctx.strokeStyle = `rgba(255,240,170,${0.5 + 0.4 * blink})`;
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([8, 9]);
+      ctx.lineDashOffset = -t * 60;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // точка удара
+      const gg = ctx.createRadialGradient(x, y, 1, x, y, 30);
+      gg.addColorStop(0, `rgba(255,246,190,${0.9 * blink})`);
+      gg.addColorStop(1, 'rgba(255,230,140,0)');
+      ctx.fillStyle = gg;
+      ctx.beginPath();
+      ctx.arc(x, y, 30, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#FFF2B0';
+      ctx.strokeStyle = '#E8A93A';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, 6 + 3 * k, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+    // разряд
+    const life = Math.max(0, h.timer / 0.42);
+    ctx.globalAlpha = 0.5 + 0.5 * life;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, -10);
+    let yy = -10;
+    let k = 0;
+    while (yy < y - 22) {
+      yy += 22;
+      k++;
+      ctx.lineTo(x + (k % 2 ? 1 : -1) * (6 + hash(k + Math.floor(t * 18)) * 8), yy);
+    }
+    ctx.lineTo(x, y);
+    ctx.strokeStyle = 'rgba(255,228,120,.9)';
+    ctx.lineWidth = 11;
+    ctx.stroke();
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    const gg = ctx.createRadialGradient(x, y, 1, x, y, 46);
+    gg.addColorStop(0, 'rgba(255,255,255,.95)');
+    gg.addColorStop(0.4, 'rgba(255,238,160,.6)');
+    gg.addColorStop(1, 'rgba(255,230,140,0)');
+    ctx.fillStyle = gg;
+    ctx.beginPath();
+    ctx.arc(x, y, 46, 0, TAU);
     ctx.fill();
     ctx.restore();
   }
