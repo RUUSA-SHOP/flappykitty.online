@@ -236,6 +236,13 @@ test('config.js: 20 записок — по одной после каждого
     assert.equal(CONFIG.notes.find((n) => n.round === last.id).from, CONFIG.cat.name, `записка № ${last.id} — от Мии`);
   }
   assert.ok(CONFIG.her.name && CONFIG.her.sweet && CONFIG.her.dative && CONFIG.cat.name && CONFIG.from);
+  // Прощание стоит один раз — в подписи. Если оно же осталось последней строкой письма, на листке выходит повтор.
+  const bye = CONFIG.from.replace(/[\u2764\u2665]\uFE0F?/g, '').trim().toLowerCase();
+  for (const l of CONFIG.letters) {
+    const last = l.text.trim().split('\n').pop().toLowerCase();
+    assert.ok(!bye || !last.includes(bye), `письмо № ${l.level} заканчивается теми же словами, что и подпись: «${last}»`);
+    assert.equal(l.text, l.text.trim(), `в письме № ${l.level} лишние пробелы или пустые строки по краям`);
+  }
 });
 
 test('config.js: день рождения — настоящая дата, режим включается только в этот день', () => {
@@ -559,7 +566,7 @@ test('второй уровень: каждая опасность появля�
 
 /* ---------- сохранение ---------- */
 
-const { save } = await import('../assets/js/storage.js');
+const { save, SAVE_EPOCH } = await import('../assets/js/storage.js');
 
 test('сохранение: раунды открываются по очереди', () => {
   save.reset();
@@ -611,7 +618,7 @@ const freshSave = async () => (await import(`../assets/js/storage.js?copy=${++co
   });
 }
 {
-  store.set('flappykitty.save.v1', JSON.stringify({ hearts: -5, totalHearts: 'много', best: 2.9, levels: { 1: { done: 1, stars: 9 }, x: 4 }, notes: [1, 1, 'a', 2], skins: 'hood', skin: 'ghost', sound: false, future: { kart: 1 } }));
+  store.set('flappykitty.save.v1', JSON.stringify({ epoch: SAVE_EPOCH, hearts: -5, totalHearts: 'много', best: 2.9, levels: { 1: { done: 1, stars: 9 }, x: 4 }, notes: [1, 1, 'a', 2], skins: 'hood', skin: 'ghost', sound: false, future: { kart: 1 } }));
   const s = await freshSave();
   test('странные значения в сохранении приводятся к нормальным', () => {
     const d = s.data;
@@ -628,38 +635,55 @@ const freshSave = async () => (await import(`../assets/js/storage.js?copy=${++co
   });
 }
 {
-  // Запись от версии с шестью раундами: шестым был финал с письмом. Теперь финал — десятый.
-  const old = {};
-  for (let i = 1; i <= 6; i++) old[i] = { done: true, stars: i === 6 ? 2 : 3, hearts: 20 + i };
-  store.set('flappykitty.save.v1', JSON.stringify({ v: 1, hearts: 300, totalHearts: 450, best: 17, levels: old, notes: [1, 2, 3, 4, 5, 6], seenNotes: [1, 2, 6], skins: ['super', 'hood'], skin: 'hood', plays: 12 }));
+  // Общий сброс: запись, сделанная до него (без номера сброса), заменяется чистой при первом же чтении.
+  const done = {};
+  for (let i = 1; i <= 20; i++) done[i] = { done: true, stars: 3, hearts: 20 + i };
+  const before = { v: 1, rounds: 10, hearts: 300, totalHearts: 450, best: 17, levels: done, notes: [1, 2, 3, 10, 20], seenNotes: [1, 2, 10], skins: ['super', 'hood'], skin: 'hood', sound: false, music: false, plays: 12, future: { kart: 1 } };
+  store.set('flappykitty.save.v1', JSON.stringify(before));
   const s = await freshSave();
-  test('старое сохранение (6 раундов): финал и письмо переезжают на № 10, раунды 6–9 ждут своей очереди', () => {
+  test('общий сброс: запись, сделанная до сброса, обнуляется целиком при первом открытии', () => {
     const d = s.data;
-    assert.deepEqual(d.levels[10], { done: true, stars: 2, hearts: 26 }, 'результат финала перенесён');
-    assert.equal(d.levels[6], undefined, 'новый шестой раунд ещё не пройден');
-    for (let i = 1; i <= 5; i++) assert.deepEqual(d.levels[i], { done: true, stars: 3, hearts: 20 + i }, `раунд ${i} не тронут`);
-    assert.deepEqual(d.notes, [1, 2, 3, 4, 5, 10], 'письмо осталось открытым');
-    assert.deepEqual(d.seenNotes, [1, 2, 10]);
-    assert.equal(d.hearts, 300);
-    assert.equal(d.best, 17);
-    assert.equal(d.skin, 'hood');
-    assert.equal(s.totalStars(), 17);
-    assert.equal(s.nextRound(ROUNDS.length), 6, 'следующий раунд — шестой');
-    assert.equal(s.isRoundOpen(6), true);
-    assert.equal(s.isRoundOpen(7), false, 'раунды открываются по очереди');
-    assert.equal(s.isRoundOpen(10), true, 'уже пройденный финал можно переиграть');
-    // перенос делается один раз: после записи новый шестой раунд остаётся шестым
-    s.completeRound(6, 3, 30);
+    assert.equal(d.epoch, SAVE_EPOCH);
+    assert.deepEqual(d.levels, {}, 'пройденных раундов нет');
+    assert.deepEqual([d.hearts, d.totalHearts, d.best, d.plays], [0, 0, 0, 0], 'сердечки, рекорд и счётчик запусков обнулены');
+    assert.deepEqual([d.notes, d.seenNotes], [[], []], 'записки и письма снова закрыты');
+    assert.deepEqual([d.skins, d.skin], [['super'], 'super'], 'облики сброшены');
+    assert.deepEqual([d.sound, d.music], [true, true], 'звук и музыка включены, как у нового игрока');
+    assert.equal(d.future, undefined, 'незнакомые поля старой записи тоже стёрты');
+    assert.equal(s.nextRound(ROUNDS.length), 1);
+    assert.equal(s.isRoundOpen(2), false);
+    assert.equal(s.totalStars(), 0);
+    // чистая запись уже лежит в хранилище — её увидят страницы сайта, которые ничего не пишут
     const raw = JSON.parse(store.get('flappykitty.save.v1'));
-    assert.equal(raw.rounds, 10);
-    assert.equal(raw.levels[6].stars, 3);
+    assert.equal(raw.epoch, SAVE_EPOCH);
+    assert.deepEqual(raw.levels, {});
+    assert.equal(raw.hearts, 0);
+    // после сброса прогресс копится как обычно
+    s.completeRound(1, 3, 30);
+    s.addHearts(30);
+    s.set({ superMia: { stage: 2 } });
   });
   const again = await freshSave();
-  test('перенос старого сохранения не повторяется при следующем запуске', () => {
-    assert.deepEqual(again.data.levels[6], { done: true, stars: 3, hearts: 30 });
-    assert.deepEqual(again.data.levels[10], { done: true, stars: 2, hearts: 26 });
-    assert.deepEqual(again.data.notes, [1, 2, 3, 4, 5, 10, 6]);
-    assert.equal(again.isRoundOpen(7), true);
+  test('общий сброс делается один раз: то, что пройдено после него, остаётся', () => {
+    assert.deepEqual(again.data.levels, { 1: { done: true, stars: 3, hearts: 30 } });
+    assert.equal(again.data.hearts, 30);
+    assert.deepEqual(again.data.notes, [1]);
+    assert.deepEqual(again.data.superMia, { stage: 2 }, 'поля будущих игр после сброса живут как раньше');
+    assert.equal(again.isRoundOpen(2), true);
+  });
+  // запись с прежним номером сброса не трогается, с бо́льшим (из более новой версии) — тоже
+  store.set('flappykitty.save.v1', JSON.stringify({ epoch: SAVE_EPOCH + 1, hearts: 7, levels: { 1: { done: true, stars: 2, hearts: 9 } } }));
+  const newer = await freshSave();
+  test('общий сброс не трогает запись, сделанную после него', () => {
+    assert.equal(newer.data.hearts, 7);
+    assert.equal(newer.data.levels[1].stars, 2);
+    newer.addHearts(1);
+    assert.equal(JSON.parse(store.get('flappykitty.save.v1')).epoch, SAVE_EPOCH + 1, 'номер сброса из более новой версии не понижается');
+  });
+  test('общий сброс: номер — целое число не меньше единицы, в чистой записи он есть', () => {
+    assert.ok(Number.isInteger(SAVE_EPOCH) && SAVE_EPOCH >= 1);
+    newer.reset();
+    assert.ok(JSON.parse(store.get('flappykitty.save.v1')).epoch >= SAVE_EPOCH);
   });
 }
 {
