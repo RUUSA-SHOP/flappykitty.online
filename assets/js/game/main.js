@@ -21,7 +21,7 @@ const sound = new Sound();
 
 const LOSE_LINES = [
   'Мия прилегла отдохнуть. Но она уже готова лететь снова.',
-  'Девять жизней — это в сумме. На уровень выдают три.',
+  'Девять жизней — это в сумме. На раунд выдают три.',
   'Мия делает вид, что так и было задумано.',
   'Это была разведка. Теперь всерьёз.',
 ];
@@ -87,6 +87,8 @@ async function boot() {
   bind();
   resize();
   attract();
+  // шрифт названия мог догрузиться позже — просвет под ним изменится
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeMenuMia).catch(() => {});
   // ?round=N — номер раунда подряд, от 1 до 20; ?level=N — то же самое, старое имя (ссылки из прежней версии)
   const jump = parseInt(params.get('round') || params.get('level'), 10);
   if (jump && (DEV || save.isRoundOpen(jump)) && ROUNDS[jump - 1]) startRound(jump);
@@ -130,6 +132,7 @@ function go(name) {
     bankHearts();
     attract();
     refreshMenu();
+    placeMenuMia(); // после refreshMenu: строка с рекордом меняет высоту блока кнопок
   }
   if (name === 'levels') renderLevels();
   if (name === 'wardrobe') renderSkins();
@@ -137,8 +140,9 @@ function go(name) {
     if (name === 'pause') sound.stopMusic();
     else sound.startMusic();
   }
-  // с клавиатуры удобно сразу попадать на главную кнопку экрана
   const scr = $(`.screen[data-name="${name}"]`);
+  if (scr) scr.scrollTop = 0; // окно выше экрана (телефон боком) каждый раз открывается с начала, а не там, где его бросили
+  // с клавиатуры удобно сразу попадать на главную кнопку экрана
   const focusable = scr && ($('.btn:not(.btn--ghost):not([hidden]):not([disabled])', scr) || $('.btn:not([hidden]):not([disabled])', scr));
   if (focusable && matchMedia('(hover: hover)').matches) focusable.focus({ preventScroll: true });
 }
@@ -227,14 +231,28 @@ function keepAwake(on) {
   }
 }
 
-/** Где Мия парит в меню. На обычном экране — по центру, между названием и кнопками.
-    На низком (телефон боком) кнопки занимают это место и закрывали её наполовину, поэтому там она
-    отлетает вправо от названия. Порог тот же, что у правила «низкий экран» в game.css. */
+/** Где Мия парит в меню: в просвете между названием и кнопками, какой бы высоты ни был экран.
+    (Раньше высота была постоянной, и на невысоком телефоне — 360×560, когда часть экрана заняли панели
+    браузера, — главная кнопка закрывала Мию целиком.)
+    На низком экране (телефон боком) просвета нет: там она отлетает вправо от названия.
+    Порог тот же, что у правила «низкий экран» в game.css. */
 function placeMenuMia() {
-  const low = (canvas.clientHeight || 720) <= 520;
+  if (!sim || !sim.attract) return;
+  // «боком» — низкий и лежачий кадр; низкий стоячий (маленький телефон) раскладывается столбиком, как обычный
+  const low = (canvas.clientHeight || 720) <= 520 && canvas.clientWidth > canvas.clientHeight;
   sim.viewW = renderer.viewW;
   sim.miaX = low ? renderer.viewW - 150 : renderer.viewW / 2;
-  sim.hoverY = low ? 290 : 400; // ниже счётчика сердечек: над головой ещё облачко с репликой
+  sim.hoverY = low ? 290 : 400; // боком: ниже счётчика сердечек, над головой ещё облачко с репликой
+  const sub = $('.menu__sub');
+  const buttons = $('.menu__buttons');
+  if (low || !sub.offsetParent) return; // меню сейчас не на экране — мерить нечего
+  // offsetTop, а не getBoundingClientRect: у названия и кнопок идёт анимация появления, она сдвигает рамки
+  const top = sub.offsetTop + sub.offsetHeight;
+  const bottom = buttons.offsetTop;
+  if (bottom <= top) return;
+  // середина просвета; чуть ниже, потому что над головой Мии появляется облачко
+  const mid = renderer.toWorld(0, top + (bottom - top) * 0.54).y;
+  sim.hoverY = Math.max(200, Math.min(430, mid));
 }
 
 /** Фоновая сцена для меню: Мия парит по центру, мир медленно плывёт. */
@@ -1015,7 +1033,7 @@ function bind() {
     sound.unlock();
     if ($('#btnEndless').getAttribute('aria-disabled') === 'true') {
       sound.play('nope');
-      return toast('Сначала уровень 1');
+      return toast('Сначала пройди раунд 1'); // режим открывается после первого раунда, а не после всего уровня
     }
     sound.play('click');
     startEndless();
@@ -1064,9 +1082,11 @@ function resize() {
   if (!sim) return;
   if (sim.attract) {
     placeMenuMia();
+    sim.mia.y = sim.hoverY;
   } else if (sim.status === 'ready') {
     // до старта можно безболезненно пересоздать уровень под новый размер
-    const keep = { mode: sim.mode, roundId: sim.round ? sim.round.id : 1 };
+    // (в бесконечном режиме — с тем же набором миров: без него в забег попали бы ещё закрытые миры второго уровня)
+    const keep = { mode: sim.mode, roundId: sim.round ? sim.round.id : 1, worlds: sim.mode === 'endless' ? endlessWorlds() : null };
     sim = new Sim({ ...keep, viewW: w, seed: Date.now() % 1e9 });
   } else sim.viewW = w;
 }

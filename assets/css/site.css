@@ -185,6 +185,32 @@ main {
     font-size: 0.9rem;
   }
 }
+/* Кошелёк появляется в шапке после первого полёта. На телефоне он не помещался рядом с названием:
+   сердечко наезжало на «Flappy Kitty». Пока кошелёк виден, кнопка «Играть» остаётся без значка,
+   а название становится чуть мельче. Метку has-wallet ставит site.js. */
+@media (max-width: 430px) {
+  .has-wallet .head-end .btn .icon {
+    display: none;
+  }
+  .has-wallet .head-end .btn {
+    padding-inline: 1em;
+  }
+  .has-wallet .site-head__in {
+    column-gap: 10px;
+  }
+  .has-wallet .head-end {
+    gap: 8px;
+  }
+  .has-wallet .brand {
+    font-size: 1.1rem;
+  }
+}
+@media (max-width: 365px) {
+  .has-wallet .brand {
+    gap: 6px;
+    font-size: 1rem;
+  }
+}
 @media (max-width: 350px) {
   .brand span {
     position: absolute;

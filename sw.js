@@ -8,7 +8,7 @@
    сайт работает и в подпапке GitHub Pages, и в корне домена.
    ⚠ Поменял список CORE — увеличь номер в VERSION. */
 
-const VERSION = 'fk-7'; // правки владельца: записки № 10 и № 16, подписи кнопок в одну строку, новый комок пыли
+const VERSION = 'fk-8'; // подпись под письмами, общий сброс прогресса, меню и окна на низких экранах, шапка сайта
 const CACHE = `flappykitty-${VERSION}`;
 
 // Всё, без чего игра не запустится, и страницы сайта, на которые из неё ведут ссылки.
@@ -99,7 +99,7 @@ function store(request, response) {
   return response;
 }
 
-// play.html?level=3 и play.html — одна и та же страница
+// play.html?round=3 и play.html — одна и та же страница
 const fromCache = (request) => caches.match(request, { ignoreSearch: true });
 
 function networkFirst(request) {

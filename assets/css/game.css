@@ -114,13 +114,14 @@
 }
 .panel__head {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
 }
 .panel__head h2 {
   font-size: 1.5rem;
   font-weight: 900;
+  overflow-wrap: anywhere;
 }
 .panel__note {
   font-size: 0.95rem;
@@ -1438,6 +1439,35 @@
   .panel .eyebrow {
     letter-spacing: 0.08em;
   }
+  /* шапка «Гардероба»: на телефоне 320 px кошелёк с четырёхзначным числом вылезал за правый край панели */
+  .panel__head {
+    gap: 8px;
+  }
+  .panel__head h2 {
+    font-size: 1.3rem;
+  }
+  .panel__head .iconbtn {
+    width: 40px;
+    height: 40px;
+  }
+  .panel__head .wallet {
+    gap: 4px;
+    padding: 0 10px 0 8px;
+    font-size: 1rem;
+  }
+}
+
+/* Невысокий телефон (360×560: часть экрана заняли панели браузера). Название в две строки съедало весь
+   просвет между собой и кнопками, и главная кнопка закрывала Мию. Здесь оно в одну строку. */
+@container (max-height: 640px) and (min-height: 521px) {
+  .logo {
+    font-size: clamp(2.5rem, 13.5cqw, 3.4rem);
+    white-space: nowrap;
+  }
+  .menu__buttons {
+    gap: 10px;
+    margin-bottom: 4px;
+  }
 }
 
 /* низкий экран (телефон боком) — компактнее */
@@ -1507,9 +1537,90 @@
   }
 }
 
+/* Низкий, но стоячий экран (маленький телефон: 320×480, или 360×510, когда панели браузера заняли
+   много места). Раскладка «боком» тут не годится — три кнопки в ряд не помещаются по ширине.
+   Возвращаем столбик, как на обычном телефоне, только плотнее; название — в одну строку. */
+@container (max-height: 520px) and (orientation: portrait) {
+  .screen--menu {
+    flex-flow: column nowrap;
+    align-content: normal;
+  }
+  .logo {
+    font-size: clamp(2.25rem, 13cqw, 3rem);
+    white-space: nowrap;
+  }
+  .menu__title {
+    flex: 0 0 auto;
+    margin-top: 0;
+    pointer-events: auto;
+  }
+  .menu__sub {
+    margin-top: 6px;
+    padding-block: 4px;
+  }
+  .menu__buttons {
+    width: min(100%, 340px);
+    grid-template-columns: minmax(0, 1fr);
+    margin-inline: 0;
+    margin-bottom: 0;
+    gap: 8px;
+  }
+}
+
+/* Телефон боком: пауза, победа, проигрыш и конец бесконечного полёта. В один столбик окно выше экрана —
+   до главной кнопки приходилось листать. Здесь окно в две колонки: слева итог, справа кнопки. */
+@container (max-height: 520px) and (orientation: landscape) {
+  .screen:is([data-name='pause'], [data-name='win'], [data-name='lose'], [data-name='over']) .panel {
+    width: min(100%, 620px);
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    column-gap: 16px;
+    row-gap: 6px;
+    align-items: center;
+    padding: 12px 16px;
+  }
+  .screen:is([data-name='pause'], [data-name='win'], [data-name='lose'], [data-name='over']) .panel > * {
+    grid-column: 1;
+  }
+  .screen:is([data-name='pause'], [data-name='win'], [data-name='lose'], [data-name='over']) .panel > .panel__stack {
+    grid-column: 2;
+    grid-row: 1 / span 6;
+    align-self: center;
+    gap: 10px;
+    margin-top: 0;
+  }
+  .screen[data-name='pause'] .panel > .panel__stack {
+    grid-row: 1 / span 3;
+  }
+  .screen:is([data-name='win'], [data-name='over']) .panel > .panel__stack {
+    grid-row: 1 / span 5;
+  }
+  .screen:is([data-name='win'], [data-name='lose'], [data-name='over']) .panel__title--script {
+    font-size: 2.1rem;
+    line-height: 1.15;
+  }
+  .screen:is([data-name='win'], [data-name='lose'], [data-name='over']) .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+  }
+  .screen[data-name='win'] .goals {
+    font-size: 0.85rem;
+  }
+  .screen[data-name='win'] .stars .icon {
+    width: 32px;
+    height: 32px;
+  }
+  .screen[data-name='win'] .stars .icon:nth-child(2) {
+    width: 38px;
+    height: 38px;
+  }
+  .screen[data-name='over'] .score__n {
+    font-size: 1.6rem;
+  }
+}
+
 /* низкий и при этом узкий экран (маленький телефон боком, кадр около 480 px): три кнопки в ряд помещаются
    только с подписями помельче */
-@container (max-height: 520px) and (max-width: 520px) {
+@container (max-height: 520px) and (max-width: 520px) and (orientation: landscape) {
   .menu__buttons {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 8px;

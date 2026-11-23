@@ -22,6 +22,8 @@ if (walletBox) {
   if (d.plays > 0 || d.totalHearts > 0) {
     walletBox.querySelector('[data-wallet]').textContent = d.hearts;
     walletBox.hidden = false;
+    // с кошельком в шапке телефона тесно: по этой метке site.css делает кнопку «Играть» и название компактнее
+    document.documentElement.classList.add('has-wallet');
   }
 }
 

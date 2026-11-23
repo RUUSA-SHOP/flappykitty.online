@@ -3,11 +3,17 @@
 
 const KEY = 'flappykitty.save.v1';
 
-const FIRST_FINAL = 10; // номер последнего раунда первого уровня; в самой первой версии игры раундов было шесть
+/* Общий сброс. Прогресс лежит в браузере каждого устройства, стереть его оттуда «снаружи» нельзя.
+   Поэтому у записи есть номер сброса: запись с меньшим номером (или без него) при первом же открытии
+   сайта заменяется чистой — один раз, дальше прогресс копится как обычно.
+   № 1 — владелец попросил обнулить всё на всех устройствах перед тем, как дарить игру (2026-11-23).
+   Чтобы обнулить ещё раз, увеличь число на единицу. Уменьшать нельзя. */
+export const SAVE_EPOCH = 1;
 
 const DEFAULTS = {
   v: 1,
-  rounds: FIRST_FINAL, // для скольких раундов сделана запись (см. перенос старых записей в read)
+  epoch: SAVE_EPOCH, // номер общего сброса, после которого сделана запись
+  rounds: 10, // историческое поле: по нему переносили записи самой первой версии (шесть раундов). Оставлено, чтобы не менять формат
   hearts: 0, // «кошелёк» сердечек — общая валюта вселенной
   totalHearts: 0, // сколько собрано за всё время
   best: 0, // рекорд бесконечного режима
@@ -41,6 +47,9 @@ function read() {
       // запись испорчена — начинаем с чистого листа, следующая запись её заменит
     }
   }
+  // Запись сделана до общего сброса — начинаем с чистого листа (см. SAVE_EPOCH).
+  const stale = !!raw && !(data.epoch >= SAVE_EPOCH);
+  if (stale) data = {};
   // Каждое поле проверяем: сохранение могли поправить руками или оно осталось от старой версии.
   const count = (v) => (Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
   const ids = (v) => (Array.isArray(v) ? Array.from(new Set(v.filter((x) => Number.isInteger(x) && x > 0))) : []);
@@ -52,23 +61,12 @@ function read() {
     }
   }
   const skins = Array.isArray(data.skins) ? data.skins.filter((x) => typeof x === 'string') : [];
-  let notes = ids(data.notes);
-  let seenNotes = ids(data.seenNotes);
-  // Запись осталась от версии с шестью раундами. Тогда шестым был финал — «Дорога к …» с письмом,
-  // теперь он десятый. Переносим его результат и открытое письмо на новый номер, чтобы ничего не пропало
-  // и чтобы новые раунды 6–9 не оказались «пройденными» сами собой. Раунды 1–5 остаются на своих местах.
-  if (raw && !(data.rounds >= FIRST_FINAL)) {
-    if (levels[6]) {
-      levels[FIRST_FINAL] = levels[6];
-      delete levels[6];
-    }
-    const move = (list) => Array.from(new Set(list.map((id) => (id === 6 ? FIRST_FINAL : id))));
-    notes = move(notes);
-    seenNotes = move(seenNotes);
-  }
+  const notes = ids(data.notes);
+  const seenNotes = ids(data.seenNotes);
   cache = {
     ...data, // незнакомые поля сохраняем: их могут добавить будущие игры
     ...DEFAULTS,
+    epoch: Math.max(SAVE_EPOCH, count(data.epoch)), // номер из более новой версии не понижаем: иначе она сбросила бы запись ещё раз
     hearts: count(data.hearts),
     totalHearts: count(data.totalHearts),
     best: count(data.best),
@@ -82,6 +80,7 @@ function read() {
     plays: count(data.plays),
   };
   if (!cache.skins.includes(cache.skin)) cache.skin = 'super';
+  if (stale) write(); // чистая запись сразу ложится в хранилище: её увидят и другие страницы сайта
   return cache;
 }
 
@@ -165,7 +164,8 @@ export const save = {
     write();
   },
   reset() {
-    cache = { ...DEFAULTS, levels: {}, notes: [], seenNotes: [], skins: ['super'] };
+    const epoch = Math.max(SAVE_EPOCH, read().epoch || 0);
+    cache = { ...DEFAULTS, epoch, levels: {}, notes: [], seenNotes: [], skins: ['super'] };
     write();
   },
 };

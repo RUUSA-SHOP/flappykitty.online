@@ -14,6 +14,7 @@
 import { createServer } from './serve.mjs';
 import { LEVELS, ROUNDS, ROUNDS_PER_LEVEL, roundsOf } from '../assets/js/game/levels.js';
 import { CONFIG } from '../assets/js/config.js';
+import { SAVE_EPOCH } from '../assets/js/storage.js';
 
 const TOTAL = ROUNDS.length; // раундов в сюжете: два уровня по десять
 const PER = ROUNDS_PER_LEVEL; // раундов в уровне
@@ -107,7 +108,8 @@ async function open(url, { w = 390, h = 844, save = null, touch = false, date = 
       }
     },
     SAVE_KEY,
-    save ? JSON.stringify(save) : null,
+    // номер общего сброса подставляется сам: без него игра примет запись за сделанную до сброса и обнулит её
+    save ? JSON.stringify({ epoch: SAVE_EPOCH, ...save }) : null,
     date
   );
   await page.goto(root + url, { waitUntil: 'networkidle0' });
@@ -234,6 +236,26 @@ await test('шапка: активный раздел отмечен, кошел
   const played = track(await open('mia.html', { save: { hearts: 57, totalHearts: 80, plays: 3 } }));
   assert(await visible(played, '[data-wallet-box]'), 'кошелёк должен появиться');
   equal(await text(played, '[data-wallet]'), '57', 'число сердечек в шапке');
+
+  // С кошельком в шапке телефона тесно: сердечко наезжало на название «Flappy Kitty».
+  // Проверяем самый длинный случай — четырёхзначный кошелёк — на всех ширинах телефона.
+  for (const w of [320, 351, 360, 375, 390, 414, 430]) {
+    const page = track(await open('index.html', { w, h: 700, save: { hearts: 9999, totalHearts: 9999, plays: 3 } }));
+    await page.evaluate(() => document.fonts.ready);
+    const m = await page.evaluate(() => {
+      const box = (e) => e.getBoundingClientRect();
+      const name = document.querySelector('.brand span');
+      const range = document.createRange();
+      range.selectNodeContents(name);
+      const text = box(range);
+      const shown = box(name).width > 2; // на самых узких экранах название спрятано, остаётся значок
+      const wallet = box(document.querySelector('.head-wallet'));
+      const btn = box(document.querySelector('.head-end .btn'));
+      return { overlap: shown && text.right > wallet.left, walletOnBtn: wallet.right > btn.left, outside: btn.right > innerWidth || box(document.querySelector('.brand')).left < 0 };
+    });
+    equal(m, { overlap: false, walletOnBtn: false, outside: false }, `шапка с кошельком на ${w}px`);
+    await page.close();
+  }
 });
 
 await test('альбом: фото открывается, листается стрелками и закрывается по Esc', async (track) => {
@@ -612,44 +634,38 @@ await test('финал второго уровня: записка № 20, по�
   assert(!['letter', 'email'].includes(await page.evaluate(() => window.__fk.sound.theme)), 'в меню возвращается обычная музыка');
 });
 
-await test('старое сохранение (шесть раундов): финал и письмо переезжают на десятый раунд первого уровня, новые раунды открываются по очереди', async (track) => {
-  const old = {};
-  for (let i = 1; i <= 6; i++) old[i] = { done: true, stars: i === 6 ? 2 : 3, hearts: 20 };
-  const saved = { levels: old, notes: [1, 2, 3, 4, 5, 6], seenNotes: [1, 2, 3, 4, 5, 6], hearts: 300, totalHearts: 400, skins: ['super', 'hood'], skin: 'hood', plays: 12 };
-  const page = track(await game({ save: saved }));
-  equal(await text(page, '#btnPlayLabel'), 'Уровень 1 · раунд 6', 'главная кнопка зовёт в первый новый раунд');
+await test('общий сброс: прогресс, записанный до сброса, обнуляется один раз — в игре и на странице записок', async (track) => {
+  // Так выглядит запись на телефоне, где игру уже прошли: номера сброса в ней нет.
+  const levels = {};
+  for (let i = 1; i <= TOTAL; i++) levels[i] = { done: true, stars: 3, hearts: 20 };
+  const before = { epoch: undefined, rounds: 10, levels, notes: upTo(TOTAL), seenNotes: upTo(TOTAL), hearts: 300, totalHearts: 400, best: 31, skins: ['super', 'hood'], skin: 'hood', plays: 12 };
+  const page = track(await game({ save: before }));
+  equal(await text(page, '#btnPlayLabel'), 'Играть', 'главная кнопка — как у нового игрока');
+  equal(await text(page, '.screen[data-name="menu"] [data-wallet]'), '0', 'кошелёк пуст');
+  const d = await stored(page);
+  equal([d.epoch, d.levels, d.notes, d.seenNotes, d.hearts, d.totalHearts, d.best, d.skins, d.skin], [SAVE_EPOCH, {}, [], [], 0, 0, 0, ['super'], 'super'], 'в хранилище лежит чистая запись');
   await page.click('#btnLevels');
   await waitScreen(page, 'levels');
   const cards = await page.evaluate(() => [...document.querySelectorAll('#levelList .level')].map((c) => `${c.disabled ? 'закрыт' : 'открыт'}:${c.querySelectorAll('.level__stars .on').length}`));
-  // Старое сохранение знало один финал — шестой. Переезжает он на финал ПЕРВОГО уровня
-  // (это раунд 10 из 20), а не на последний. Открыты: 1–5, шестой (ждёт прохождения),
-  // сам финал и следующий за ним раунд — пройденный раунд открывает соседа.
-  const firstFinal = roundsOf(1).at(-1).id;
-  const want = Array.from({ length: TOTAL }, (_, i) => {
-    const id = i + 1;
-    if (id <= 5) return 'открыт:3';
-    if (id === 6) return 'открыт:0';
-    if (id === firstFinal) return 'открыт:2';
-    if (id === firstFinal + 1) return 'открыт:0';
-    return 'закрыт:0';
+  equal(cards, ['открыт:0', ...Array(TOTAL - 1).fill('закрыт:0')], 'открыт только первый раунд');
+  equal(await text(page, '#starTotal'), `0/${TOTAL * 3}`, 'звёзд нет');
+
+  // сброс разовый: то, что пройдено после него, переживает перезагрузку
+  await page.evaluate(() => {
+    window.__fk.save.completeRound(1, 3, 20);
+    window.__fk.save.addHearts(20);
   });
-  equal(cards, want, 'карточки раундов');
-  equal(await text(page, '#starTotal'), `17/${TOTAL * 3}`, 'звёзды не потерялись');
-  equal(await text(page, '.screen[data-name="menu"] [data-wallet]'), '300', 'сердечки не потерялись');
+  await page.reload({ waitUntil: 'networkidle0' });
+  await waitScreen(page, 'menu');
+  equal(await text(page, '#btnPlayLabel'), 'Уровень 1 · раунд 2', 'после перезагрузки прогресс на месте');
+  equal(await text(page, '.screen[data-name="menu"] [data-wallet]'), '20', 'сердечки на месте');
   await page.close();
 
-  const love = track(await open('love.html', { save: saved }));
-  // Открыто: записки пройденных раундов (1–5 и финал первого уровня) + первое письмо, которое уже открывали.
-  const oldDone = new Set([1, 2, 3, 4, 5, firstFinal]);
-  const openNotes = CONFIG.notes.filter((n) => oldDone.has(n.round)).length;
-  equal(openNotes, 6, 'открытых записок у старого игрока');
-  equal(await text(love, '#noteCount'), `Открыто ${openNotes + 1} из ${CARDS}`, 'счётчик записок');
-  equal(await love.evaluate(() => [...document.querySelectorAll('#notes .note--final')].map((n) => n.classList.contains('note--locked'))), [false, true], 'первое письмо, которое уже открывали, остаётся открытым; второе ждёт');
-  equal(await love.evaluate(() => document.querySelectorAll('#notes .notes .note--locked').length), CONFIG.notes.length - openNotes, 'записки новых раундов ещё заперты');
-  // «Пройти раунд» есть только у запертых, но доступных записок: шестой раунд и 11-й
-  // (финал первого уровня пройден, значит первый раунд второго уровня открыт).
-  const reachable = [6, firstFinal + 1].map((id) => `play.html?round=${id}`);
-  equal(await love.evaluate(() => [...document.querySelectorAll('.note--locked a')].map((a) => a.getAttribute('href'))), reachable, 'кнопка «Пройти раунд» — у открытых, но ещё не пройденных раундов');
+  // страница записок ничего не пишет сама, но тоже видит чистую запись
+  const love = track(await open('love.html', { save: before }));
+  equal(await text(love, '#noteCount'), `Открыто 0 из ${CARDS}`, 'счётчик записок');
+  equal(await love.evaluate(() => document.querySelectorAll('#notes .note--locked').length), CARDS, 'все записки и письма заперты');
+  equal((await stored(love)).epoch, SAVE_EPOCH, 'страница записок записала чистое сохранение');
 });
 
 await test('новые раунды: вступление с подсказкой, своя записка и фото из альбома', async (track) => {
@@ -686,8 +702,9 @@ await test('новые раунды: вступление с подсказко�
 });
 
 await test('раунды и гардероб: шапка и кнопка «назад» видны на любом телефоне, до последней карточки можно долистать', async (track) => {
-  const page = track(await game({ w: 390, h: 844, touch: true, save: { hearts: 900, totalHearts: 900, plays: 3 } }, '?dev=1'));
-  for (const [w, h] of [[320, 568], [360, 700], [375, 812], [390, 664], [393, 740], [412, 780], [430, 800], [740, 360]]) {
+  // кошелёк четырёхзначный: на телефоне 320 px он вылезал из шапки «Гардероба» за правый край панели
+  const page = track(await game({ w: 390, h: 844, touch: true, save: { hearts: 9999, totalHearts: 9999, plays: 3 } }, '?dev=1'));
+  for (const [w, h] of [[320, 480], [320, 568], [360, 700], [375, 812], [390, 664], [393, 740], [412, 780], [430, 800], [740, 360]]) {
     await page.setViewport({ width: w, height: h, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
     for (const name of ['levels', 'wardrobe']) {
       await page.evaluate((n) => window.__fk.go(n), name);
@@ -701,8 +718,11 @@ await test('раунды и гардероб: шапка и кнопка «на�
         // последнее на экране уровней — плашка письма второго уровня, в гардеробе — последний облик
         const last = [...scr.querySelectorAll('li, .tier__letter')].pop().getBoundingClientRect();
         scr.scrollTop = 0;
-        return { head: Math.round(head.top), back: Math.round(back.top), lastBottom: Math.round(last.bottom), vh: innerHeight, n: scr.querySelectorAll('li').length };
+        const panel = scr.querySelector('.panel').getBoundingClientRect();
+        const spill = [...scr.querySelector('.panel__head').children].filter((e) => { const r = e.getBoundingClientRect(); return r.left < panel.left || r.right > panel.right - 8; }).length;
+        return { head: Math.round(head.top), back: Math.round(back.top), lastBottom: Math.round(last.bottom), vh: innerHeight, n: scr.querySelectorAll('li').length, spill };
       }, name);
+      equal(m.spill, 0, `${name} ${w}×${h}: шапка панели вылезла за её край`);
       assert(m.head >= 0 && m.back >= 0, `${name} ${w}×${h}: шапка уехала за верх экрана: ${JSON.stringify(m)}`);
       assert(m.lastBottom <= m.vh + 1, `${name} ${w}×${h}: до последней карточки не долистать: ${JSON.stringify(m)}`);
       if (name === 'levels') equal(m.n, TOTAL, 'карточек раундов');
@@ -807,6 +827,14 @@ await test('бесконечный режим: одна жизнь, счёт, р
   const worlds = await page.evaluate(() => window.__fk.sim.worlds);
   equal(worlds[0], 'living', 'забег начинается в гостиной');
   equal([...worlds].sort(), [...first].sort(), 'в забеге — только миры первого уровня');
+  // поворот телефона до первого взмаха пересоздаёт забег — закрытые миры второго уровня не должны в него попасть
+  await page.setViewport({ width: 640, height: 360, deviceScaleFactor: 1 });
+  await page.waitForFunction(() => window.__fk.sim.viewW > 500);
+  const turned = await page.evaluate(() => ({ mode: window.__fk.sim.mode, worlds: window.__fk.sim.worlds }));
+  equal(turned.mode, 'endless', 'после поворота режим тот же');
+  equal([...turned.worlds].sort(), [...first].sort(), 'после поворота — те же миры первого уровня');
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 });
+  await page.waitForFunction(() => window.__fk.sim.viewW < 500);
   const run = await page.evaluate(() => {
     const sim = window.__fk.sim;
     sim.flap();
@@ -919,7 +947,8 @@ await test('день рождения: в нужный день меню поз�
 });
 
 await test('игра помещается на маленьком и на лежачем экране', async (track) => {
-  for (const [w, h] of [[320, 568], [844, 390], [667, 375]]) {
+  // 320×480 и 360×510 — низкий, но стоячий экран: раньше он получал раскладку «боком», и кнопки уезжали за край
+  for (const [w, h] of [[320, 568], [320, 480], [360, 510], [844, 390], [667, 375]]) {
     const page = track(await game({ w, h, touch: true, save: { levels: { 1: { done: true, stars: 2, hearts: 9 } }, notes: [1], best: 12, plays: 3 } }));
     await settle(page); // меню появляется с анимацией — меряем, когда всё встало на место
     const off = await page.evaluate(() => {
@@ -939,13 +968,43 @@ await test('игра помещается на маленьком и на леж
     });
     assert(btn, `вступление ${w}×${h}: кнопка «Полетели!» не помещается`);
   }
+
+  // Телефон боком: на паузе, после победы, проигрыша и в конце бесконечного полёта главная кнопка видна сразу.
+  // (Раньше окно было в один столбик, выше экрана, и до кнопки приходилось листать.)
+  const done = {};
+  for (let i = 1; i <= 9; i++) done[i] = { done: true, stars: 2, hearts: 9 };
+  for (const [w, h] of [[568, 320], [740, 360], [844, 390]]) {
+    const page = track(await game({ w, h, touch: true, save: { levels: done, notes: [1, 2, 3, 4, 5, 6, 7, 8, 9], best: 12, plays: 9 } }));
+    await page.evaluate(() => {
+      const fk = window.__fk;
+      fk.startRound(10); // финал уровня: самые длинные подписи на экране победы
+      fk.beginPlay();
+      fk.sim.flap();
+      fk.sim.status = 'won';
+      fk.showWin();
+    });
+    await waitScreen(page, 'win');
+    for (const name of ['win', 'pause', 'lose', 'over']) {
+      if (name !== 'win') await page.evaluate((n) => window.__fk.go(n), name);
+      await settle(page);
+      const m = await page.evaluate((n) => {
+        const scr = document.querySelector(`.screen[data-name="${n}"]`);
+        const main = [...scr.querySelectorAll('.panel__stack .btn')].find((b) => !b.hidden).getBoundingClientRect();
+        const panel = scr.querySelector('.panel').getBoundingClientRect();
+        return { top: Math.round(main.top), bottom: Math.round(main.bottom), vh: innerHeight, panelTop: Math.round(panel.top), scrollTop: scr.scrollTop };
+      }, name);
+      assert(m.top >= 0 && m.bottom <= m.vh, `${name} ${w}×${h}: главная кнопка не видна без прокрутки: ${JSON.stringify(m)}`);
+      assert(m.panelTop >= 0 && m.scrollTop === 0, `${name} ${w}×${h}: окно открылось не с начала: ${JSON.stringify(m)}`);
+    }
+  }
 });
 
 await test('длинные подписи: «Уровень 2 · раунд 10» и «Дальше · уровень 2» остаются в одну строку на узком телефоне и на телефоне боком', async (track) => {
   // Вторая строка делает главную кнопку выше, и она закрывает Мию в меню. Проверяем самые длинные подписи.
   const levels = {};
   for (let i = 1; i < TOTAL; i++) levels[i] = { done: true, stars: 3, hearts: 20 };
-  const saved = { rounds: TOTAL, levels, notes: upTo(TOTAL - 1), seenNotes: upTo(TOTAL - 1), plays: 9 };
+  // с рекордом: строка «Рекорд» под кнопками отнимает у меню ещё немного высоты
+  const saved = { rounds: TOTAL, levels, notes: upTo(TOTAL - 1), seenNotes: upTo(TOTAL - 1), plays: 9, best: 23 };
   // одна строка: у текста один прямоугольник, кнопка не выше обычной и текст из неё не вылезает
   const oneLine = (page, sel) => page.evaluate((s) => {
     const el = document.querySelector(s);
@@ -959,19 +1018,26 @@ await test('длинные подписи: «Уровень 2 · раунд 10»
     const t = range.getBoundingClientRect();
     return { lines: tops.size, fits: t.left >= r.left - 1 && t.right <= r.right + 1 && r.left >= 0 && r.right <= innerWidth + 1, text: el.textContent.trim() };
   }, sel);
-  for (const [w, h] of [[320, 568], [360, 640], [390, 844]]) {
+  // 360×560 и 375×553 — обычный телефон, у которого часть экрана заняли панели браузера
+  for (const [w, h] of [[320, 568], [360, 560], [375, 553], [360, 640], [390, 844]]) {
     const page = track(await game({ w, h, touch: true, save: saved }));
     await settle(page);
     const play = await oneLine(page, '#btnPlayLabel');
     equal(play, { lines: 1, fits: true, text: `Уровень 2 · раунд ${PER}` }, `меню ${w}×${h}: главная кнопка`);
-    // Мия парит над кнопками: кнопка не должна её закрывать
-    const gap = await page.evaluate(() => {
+    // Мия парит в просвете между названием и кнопками: ни кнопка, ни подзаголовок её не закрывают.
+    // (На 360×560 название стояло в две строки, просвета не оставалось, и кнопка закрывала Мию целиком.)
+    const room = await page.evaluate(() => {
       const fk = window.__fk;
       const at = fk.renderer.toCss(fk.sim.miaX, fk.sim.hoverY);
       const c = document.querySelector('canvas').getBoundingClientRect();
-      return Math.round(document.getElementById('btnPlay').getBoundingClientRect().top - (c.top + at.y));
+      const half = 30 * fk.renderer.scale; // половина роста Мии на экране
+      const y = c.top + at.y;
+      return {
+        above: Math.round(y - half - document.querySelector('.menu__sub').getBoundingClientRect().bottom),
+        below: Math.round(document.getElementById('btnPlay').getBoundingClientRect().top - (y + half)),
+      };
     });
-    assert(gap >= 0, `меню ${w}×${h}: главная кнопка закрывает Мию (на ${-gap} px)`);
+    assert(room.above >= 0 && room.below >= 0, `меню ${w}×${h}: Мия закрыта названием или главной кнопкой: ${JSON.stringify(room)}`);
 
     await page.evaluate((id) => window.__fk.startRound(id), TOTAL);
     await waitScreen(page, 'intro');
